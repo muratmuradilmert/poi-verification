@@ -1,0 +1,22 @@
+# Data files: never commit real POI data
+*.xlsx
+*.xlsm
+*.xls
+*.csv
+
+# Backups and local copies
+*.yedek.*
+*.bak
+*.orig
+
+# Secrets, just in case
+.env
+.env.*
+
+# Editor / OS / tooling
+.claude/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,0 +1,3717 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>POI Verification</title>
+  <meta name="description" content="Toplu adres → koordinat, koordinat → adres ve konum doğrulama aracı (Google Maps / Yandex). Batch geocoding, reverse geocoding and location validation in the browser.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  
+  <script src="https://unpkg.com/lucide@1.65.0/dist/umd/lucide.min.js"></script>
+
+  <style>
+    :root {
+      --bg-main: #f8fafc;
+      --bg-header: #ffffff;
+      --bg-card: #ffffff;
+      --bg-card-hover: #f1f5f9;
+      --border-color: #e2e8f0;
+      --border-hover: #cbd5e1;
+      --text-primary: #0f172a;
+      --text-secondary: #64748b;
+      --primary: #d11f52;
+      --primary-hover: #b41643;
+      --accent: #d11f52;
+      --accent-hover: #b41643;
+      --accent-glow: rgba(209, 31, 82, 0.15);
+      --success: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --info: #3b82f6;
+      --font-title: 'Outfit', 'Inter', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      --bg-row-even: #f8fafc;
+      --bg-table-header: #f1f5f9;
+      --bg-selected: #fdf2f8;
+      --bg-selected-hover: #fce7f3;
+    }
+
+    :root.dark {
+      --bg-main: #0f172a;
+      --bg-header: #1e293b;
+      --bg-card: #1e293b;
+      --bg-card-hover: #334155;
+      --border-color: #334155;
+      --border-hover: #475569;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --primary: #e11d48;
+      --primary-hover: #f43f5e;
+      --accent: #e11d48;
+      --accent-hover: #f43f5e;
+      --accent-glow: rgba(225, 29, 72, 0.25);
+      --bg-row-even: #131b2e;
+      --bg-table-header: #1e293b;
+      --bg-selected: #311322;
+      --bg-selected-hover: #4c1d34;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg-main);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(15, 23, 42, 0.15);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(15, 23, 42, 0.25);
+    }
+    .dark ::-webkit-scrollbar-thumb {
+      background: rgba(248, 250, 252, 0.15);
+    }
+    .dark ::-webkit-scrollbar-thumb:hover {
+      background: rgba(248, 250, 252, 0.25);
+    }
+    #btn-toggle-theme {
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      border-radius: 8px;
+    }
+
+    .dashboard {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+
+    header {
+      background: var(--bg-header);
+      border-bottom: 1px solid var(--border-color);
+      padding: 14px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: relative;
+      z-index: 10;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    header::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: var(--primary);
+    }
+
+    .brand h1 {
+      font-family: var(--font-title);
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.5px;
+    }
+
+    .brand p {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    button, .file-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      height: 38px;
+      padding: 0 16px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      user-select: none;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    button:hover, .file-btn:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-hover);
+      transform: translateY(-1px);
+    }
+
+    button:active, .file-btn:active {
+      transform: translateY(0);
+    }
+
+    button:disabled, .file-btn.disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none !important;
+      background: #f1f5f9 !important;
+      border-color: var(--border-color) !important;
+      color: var(--text-secondary) !important;
+    }
+
+    button.btn-primary {
+      background: var(--primary);
+      border-color: transparent;
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(209, 31, 82, 0.2);
+    }
+
+    button.btn-primary:hover {
+      background: var(--primary-hover);
+      box-shadow: 0 4px 12px rgba(209, 31, 82, 0.35);
+    }
+
+    button.btn-accent {
+      background: var(--primary);
+      border-color: transparent;
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(209, 31, 82, 0.2);
+    }
+
+    button.btn-accent:hover {
+      background: var(--primary-hover);
+      box-shadow: 0 4px 12px rgba(209, 31, 82, 0.35);
+    }
+
+    button.btn-danger {
+      background: rgba(239, 68, 68, 0.08);
+      border-color: rgba(239, 68, 68, 0.2);
+      color: var(--danger);
+      box-shadow: none;
+    }
+
+    button.btn-danger:hover:not(:disabled) {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: var(--danger);
+    }
+
+    .file-btn input[type="file"] {
+      display: none;
+    }
+
+    .app-body {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      flex: 1;
+      height: calc(100vh - 72px);
+    }
+
+    aside {
+      background: var(--bg-header);
+      border-right: 1px solid var(--border-color);
+      padding: 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .section-title {
+      font-family: var(--font-title);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .sidebar-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      transition: border-color 0.2s ease;
+    }
+
+    .sidebar-card:hover {
+      border-color: var(--border-hover);
+    }
+
+    .form-group {
+      margin-bottom: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-group:last-child {
+      margin-bottom: 0;
+    }
+
+    label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    select, input[type="text"], input[type="number"], input[type="password"] {
+      width: 100%;
+      height: 38px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-primary);
+      padding: 0 12px;
+      font-size: 13px;
+      transition: all 0.2s ease;
+    }
+
+    .filter-bar input, .filter-bar select {
+      background: var(--bg-card) !important;
+      color: var(--text-primary) !important;
+      border-color: var(--border-color) !important;
+    }
+
+    select:focus, input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .password-wrapper {
+      position: relative;
+    }
+
+    .password-wrapper input {
+      padding-right: 36px;
+    }
+
+    .eye-btn {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none !important;
+      border: none !important;
+      padding: 0 !important;
+      height: auto !important;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+
+    .checkbox-label input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .main-panel {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      height: 100%;
+    }
+
+    .workflow-bar {
+      background: var(--bg-header);
+      border-bottom: 1px solid var(--border-color);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .tab-segmented {
+      display: inline-flex;
+      background: var(--bg-main);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 3px;
+    }
+
+    .tab-segmented button {
+      border: none;
+      background: transparent;
+      height: 32px;
+      padding: 0 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      box-shadow: none;
+    }
+
+    .tab-segmented button.active {
+      background: var(--primary);
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(209, 31, 82, 0.2);
+    }
+
+    .tab-segmented button:hover:not(.active) {
+      color: var(--text-primary);
+    }
+
+    .workflow-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .progress-strip {
+      background: var(--bg-header);
+      border-bottom: 1px solid var(--border-color);
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      animation: slideDown 0.3s ease;
+    }
+
+    .progress-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+      min-width: 150px;
+    }
+
+    .progress-bar-container {
+      flex: 1;
+      height: 8px;
+      background: var(--border-color);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      border-radius: 99px;
+      transition: width 0.2s ease;
+      box-shadow: 0 0 8px var(--accent-glow);
+    }
+
+    .progress-percent {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      min-width: 36px;
+      text-align: right;
+    }
+
+    .map-container {
+      height: 380px;
+      width: 100%;
+      border-bottom: 1px solid var(--border-color);
+      position: relative;
+      display: none;
+    }
+
+    #map {
+      height: 100%;
+      width: 100%;
+      background: #f1f5f9;
+    }
+
+    .map-overlay-info {
+      position: absolute;
+      top: 12px;
+      left: 50px;
+      z-index: 1000;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      backdrop-filter: blur(8px);
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      color: var(--text-primary);
+    }
+
+    .table-shell {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .table-meta-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 24px;
+      background: var(--bg-main);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .table-stats {
+      font-size: 13px;
+      color: var(--text-secondary);
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .table-search {
+      width: 220px;
+      position: relative;
+    }
+
+    .table-search input {
+      height: 32px;
+      font-size: 12px;
+      padding-left: 32px;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-secondary);
+      pointer-events: none;
+    }
+
+    .table-scroll {
+      flex: 1;
+      overflow: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      text-align: left;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      background: var(--bg-table-header);
+      border-bottom: 2px solid var(--border-color);
+      padding: 12px 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      z-index: 5;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border-color);
+      transition: background 0.15s ease;
+      cursor: pointer;
+    }
+
+    tbody tr:nth-child(even) {
+      background: var(--bg-row-even);
+    }
+
+    tbody tr:hover {
+      background: var(--bg-card-hover);
+    }
+
+    tbody tr.selected {
+      background: var(--bg-selected);
+    }
+
+    tbody tr.selected:hover {
+      background: var(--bg-selected-hover);
+    }
+
+    td {
+      padding: 10px 16px;
+      vertical-align: top;
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    td.cell-wrap {
+      white-space: normal;
+      word-break: break-word;
+    }
+
+    .select-cell {
+      width: 46px;
+      text-align: center;
+    }
+
+    .select-cell input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      height: 22px;
+      border-radius: 6px;
+      padding: 0 8px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+
+    .status-badge.ok {
+      background: rgba(16, 185, 129, 0.12);
+      color: #047857;
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .status-badge.bad {
+      background: rgba(239, 68, 68, 0.12);
+      color: #b91c1c;
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+
+    .status-badge.warn {
+      background: rgba(245, 158, 11, 0.12);
+      color: #b45309;
+      border: 1px solid rgba(245, 158, 11, 0.2);
+    }
+
+    .status-badge.info {
+      background: rgba(59, 130, 246, 0.12);
+      color: #1d4ed8;
+      border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      padding: 40px;
+      color: var(--text-secondary);
+      text-align: center;
+      gap: 16px;
+    }
+
+    .empty-state h3 {
+      font-family: var(--font-title);
+      color: var(--text-primary);
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .empty-state p {
+      font-size: 13px;
+      max-width: 300px;
+      line-height: 1.5;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-left: 4px solid var(--accent);
+      border-radius: 8px;
+      padding: 14px 20px;
+      z-index: 9999;
+      box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      pointer-events: none;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .toast-icon.success { color: var(--success); }
+    .toast-icon.error { color: var(--danger); }
+    .toast-icon.warn { color: var(--warning); }
+    .toast-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .toast-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .toast-desc {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .spin {
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes slideDown {
+      from { transform: translateY(-10px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+    }
+
+    .modal-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      width: 480px;
+      padding: 24px;
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
+    }
+
+    .modal-card h2 {
+      font-family: var(--font-title);
+      font-size: 18px;
+      margin-bottom: 12px;
+    }
+
+    .modal-card p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+
+    .leaflet-bar a {
+      background-color: var(--bg-card) !important;
+      color: var(--text-primary) !important;
+      border-bottom: 1px solid var(--border-color) !important;
+    }
+    .leaflet-bar a:hover {
+      background-color: var(--bg-card-hover) !important;
+    }
+    .leaflet-popup-content-wrapper {
+      background: var(--bg-card) !important;
+      color: var(--text-primary) !important;
+      border: 1px solid var(--border-color) !important;
+      backdrop-filter: blur(12px);
+      border-radius: 8px !important;
+    }
+    .leaflet-popup-tip {
+      background: var(--bg-card) !important;
+      border: 1px solid var(--border-color) !important;
+    }
+    .leaflet-popup-content strong {
+      color: var(--accent);
+      font-size: 14px;
+    }
+    .custom-pin-marker {
+      background: none !important;
+      border: none !important;
+      box-shadow: none !important;
+    }
+    tbody tr.unverified {
+      background-color: rgba(239, 68, 68, 0.08) !important;
+      color: #b91c1c;
+    }
+    tbody tr.unverified:hover {
+      background-color: rgba(239, 68, 68, 0.12) !important;
+    }
+
+    .hint-text {
+      display: block;
+      margin: 0;
+      font-size: 11px;
+      line-height: 1.4;
+      color: var(--text-secondary);
+    }
+
+    #btn-toggle-lang {
+      font-family: var(--font-title);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      min-width: 40px;
+      justify-content: center;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="dashboard">
+    <header>
+      <div class="brand">
+        <h1>POI Verification</h1>
+        <p id="loaded-file-name" data-i18n="file.none">Dosya yüklenmedi</p>
+      </div>
+      <div class="top-actions">
+        <button type="button" id="btn-toggle-lang" class="lang-btn" data-i18n-title="lang.switch" title="Switch to English">EN</button>
+        <button type="button" id="btn-toggle-theme" data-i18n-title="theme.toggle" title="Temayı değiştir">
+          <i data-lucide="moon" size="16"></i>
+        </button>
+        <label class="file-btn btn-primary" id="upload-label">
+          <i data-lucide="upload" size="16"></i>
+          <span data-i18n="btn.upload">Excel Yükle</span>
+          <input type="file" id="excel-file-input" accept=".xlsx,.xlsm,.xls" />
+        </label>
+        <button type="button" id="btn-download-template">
+          <i data-lucide="file-spreadsheet" size="16"></i>
+          <span data-i18n="btn.template">Şablon İndir</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="app-body">
+      <aside>
+        <div class="sidebar-card">
+          <div class="section-title">
+            <i data-lucide="key-round" size="16"></i>
+            <span data-i18n="side.api">API Ayarları</span>
+          </div>
+
+          <div class="form-group">
+            <label for="provider-select" data-i18n="side.provider">Servis Sağlayıcı</label>
+            <select id="provider-select">
+              <option value="google">Google Maps</option>
+              <option value="yandex">Yandex Geocoder</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="google-key-group">
+            <label for="google-key-input" data-i18n="side.googleKey">Google Maps API Anahtarı</label>
+            <div class="password-wrapper">
+              <input type="password" id="google-key-input" placeholder="AIzaSy..." />
+              <button type="button" class="eye-btn" onclick="togglePasswordVisibility('google-key-input')">
+                <i data-lucide="eye" size="16"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group" id="places-toggle-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="chk-use-places" />
+              <span data-i18n="side.usePlaces">Places API (New) kullan</span>
+            </label>
+            <span class="hint-text" data-i18n="side.placesHint">İşletme adıyla arama yapar (ücretli). Kapalıyken yalnızca Geocoding kullanılır ve adresi boş satırlar bulunamaz.</span>
+          </div>
+
+          <div class="form-group" id="yandex-key-group" style="display: none;">
+            <label for="yandex-key-input" data-i18n="side.yandexKey">Yandex API Anahtarı</label>
+            <div class="password-wrapper">
+              <input type="password" id="yandex-key-input" data-i18n-placeholder="side.keyPlaceholder" placeholder="API anahtarı..." />
+              <button type="button" class="eye-btn" onclick="togglePasswordVisibility('yandex-key-input')">
+                <i data-lucide="eye" size="16"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="chk-save-keys" checked />
+              <span data-i18n="side.saveKeys">Anahtarları bu tarayıcıda hatırla</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="sidebar-card">
+          <div class="section-title">
+            <i data-lucide="sliders" size="16"></i>
+            <span data-i18n="side.run">Çalışma Ayarları</span>
+          </div>
+
+          <div class="form-group" id="opt-threshold-group" style="display: none;">
+            <label for="threshold-input" data-i18n="side.threshold">Doğrulama Eşiği (metre)</label>
+            <input type="number" id="threshold-input" value="500" min="1" />
+          </div>
+
+          <div class="form-group" id="opt-reverse-group" style="display: none;">
+            <label class="checkbox-label">
+              <input type="checkbox" id="chk-only-missing-addr" checked />
+              <span data-i18n="side.onlyMissing">Yalnızca adresi boş olanlar</span>
+            </label>
+          </div>
+
+          <p class="hint-text" id="opt-geocode-hint" data-i18n="side.geocodeHint">Adres sütununa göre koordinat bulunur. Bir veya daha fazla satır seçerseniz yalnızca seçilenler işlenir.</p>
+        </div>
+      </aside>
+
+      <div class="main-panel">
+
+        <div class="workflow-bar">
+          <div class="tab-segmented">
+            <button type="button" class="active" data-tab="geocode" onclick="switchTab('geocode')" data-i18n="tab.geocode">Adres → Koordinat</button>
+            <button type="button" data-tab="reverse" onclick="switchTab('reverse')" data-i18n="tab.reverse">Koordinat → Adres</button>
+            <button type="button" data-tab="validate" onclick="switchTab('validate')" data-i18n="tab.validate">Konum Doğrulama</button>
+          </div>
+
+          <div class="workflow-actions">
+            <button type="button" class="btn-accent" id="btn-start-job" disabled>
+              <i data-lucide="play" size="16"></i>
+              <span id="start-btn-label">Başlat</span>
+            </button>
+            <button type="button" class="btn-primary" id="btn-fix-mismatches" style="display: none;" disabled>
+              <i data-lucide="rotate-ccw" size="16"></i>
+              <span data-i18n="btn.fix">Uyumsuzları Düzelt</span>
+            </button>
+            <button type="button" class="btn-danger" id="btn-stop-job" disabled>
+              <i data-lucide="square" size="16"></i>
+              <span data-i18n="btn.stop">Durdur</span>
+            </button>
+            <button type="button" id="btn-download-all" disabled>
+              <i data-lucide="download" size="16"></i>
+              <span data-i18n="btn.export">Excel'e Aktar</span>
+            </button>
+            <button type="button" id="btn-clear-dataset" disabled>
+              <i data-lucide="trash-2" size="16"></i>
+              <span data-i18n="btn.clear">Temizle</span>
+            </button>
+            <button type="button" id="btn-toggle-map" disabled>
+              <i data-lucide="map" size="16"></i>
+              <span data-i18n="btn.map">Harita</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="progress-strip" id="progress-strip" style="display: none;">
+          <div class="progress-info">
+            <i data-lucide="loader-2" class="spin" size="16" id="progress-spinner"></i>
+            <span id="progress-text"></span>
+          </div>
+          <div class="progress-bar-container">
+            <div class="progress-bar-fill" id="progress-bar-fill"></div>
+          </div>
+          <div class="progress-percent" id="progress-percent">0%</div>
+        </div>
+
+        <div class="map-container" id="map-panel">
+          <div class="map-overlay-info">
+            <div style="display: flex; align-items: center; gap: 6px; pointer-events: none;">
+              <i data-lucide="map-pin" size="14"></i>
+              <span id="plotted-dots-label"></span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 11px; font-weight: 600; color: var(--text-secondary);" data-i18n="map.base">Altlık:</span>
+              <select id="map-layer-select" style="height: 24px; font-size: 11px; padding: 0 4px; width: 140px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); cursor: pointer; outline: none;">
+                <option value="osm" selected data-i18n="map.layer.osm">OpenStreetMap</option>
+                <option value="esri-satellite" data-i18n="map.layer.satellite">Uydu (Esri)</option>
+                <option value="esri-hybrid" data-i18n="map.layer.hybrid">Hibrit (Esri)</option>
+              </select>
+            </div>
+          </div>
+          <div id="map"></div>
+        </div>
+
+        <div class="table-shell">
+          <div class="table-meta-bar">
+            <div class="table-stats" id="table-stats-info">
+              <span data-i18n="file.none">Dosya yüklenmedi</span>
+            </div>
+            <div class="table-search">
+              <i data-lucide="search" size="14" class="search-icon"></i>
+              <input type="text" id="search-input" data-i18n-placeholder="table.search" placeholder="Tabloda ara..." disabled />
+            </div>
+          </div>
+
+          <div class="filter-bar" id="filter-bar-panel" style="display: flex; gap: 16px; padding: 10px 24px; background: var(--bg-main); border-bottom: 1px solid var(--border-color); flex-wrap: wrap; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 6px; flex: 1; min-width: 100px;">
+              <label for="filter-id" style="font-size: 11px; font-weight: 600; color: var(--text-secondary); white-space: nowrap;">ID:</label>
+              <input type="text" id="filter-id" placeholder="ID..." style="height: 30px; font-size: 12px; padding: 0 8px; background: #ffffff; border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); outline: none;" disabled />
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; flex: 2; min-width: 150px;">
+              <label for="filter-name" style="font-size: 11px; font-weight: 600; color: var(--text-secondary); white-space: nowrap;" data-i18n="filter.name">Nokta Adı:</label>
+              <input type="text" id="filter-name" data-i18n-placeholder="filter.namePlaceholder" placeholder="İsim ara..." style="height: 30px; font-size: 12px; padding: 0 8px; background: #ffffff; border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); outline: none;" disabled />
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; flex: 1.5; min-width: 130px;">
+              <label for="filter-il" style="font-size: 11px; font-weight: 600; color: var(--text-secondary); white-space: nowrap;" data-i18n="filter.il">İl:</label>
+              <select id="filter-il" style="height: 30px; font-size: 12px; padding: 0 8px; background: #ffffff; border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); cursor: pointer; outline: none;" disabled>
+                <option value="" data-i18n="filter.all">Tümü</option>
+              </select>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; flex: 1.5; min-width: 130px;">
+              <label for="filter-ilce" style="font-size: 11px; font-weight: 600; color: var(--text-secondary); white-space: nowrap;" data-i18n="filter.ilce">İlçe:</label>
+              <select id="filter-ilce" style="height: 30px; font-size: 12px; padding: 0 8px; background: #ffffff; border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); cursor: pointer; outline: none;" disabled>
+                <option value="" data-i18n="filter.all">Tümü</option>
+              </select>
+            </div>
+            <button type="button" id="btn-clear-filters" style="height: 30px; font-size: 12px; padding: 0 12px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.15); color: var(--danger); border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 4px;" disabled>
+              <i data-lucide="filter-x" size="14"></i>
+              <span data-i18n="btn.clear">Temizle</span>
+            </button>
+          </div>
+
+          <div class="table-scroll">
+            <table id="data-table">
+              <thead>
+                <tr>
+                  <th class="select-cell">
+                    <input type="checkbox" id="th-select-all" disabled />
+                  </th>
+                  <th data-i18n="col.id">ID</th>
+                  <th data-i18n="col.name">İsim</th>
+                  <th data-i18n="col.il">İl</th>
+                  <th data-i18n="col.ilce">İlçe</th>
+                  <th data-i18n="col.address">Adres</th>
+                  <th data-i18n="col.latitude">Enlem</th>
+                  <th data-i18n="col.longitude">Boylam</th>
+                  <th data-i18n="col.status">Durum</th>
+                  <th data-i18n="col.note">Not</th>
+                </tr>
+              </thead>
+              <tbody id="table-body">
+              </tbody>
+            </table>
+
+            <div class="empty-state" id="empty-state-view">
+              <i data-lucide="file-spreadsheet" size="48" style="stroke-width:1; color: var(--text-secondary);"></i>
+              <h3 data-i18n="empty.title">Henüz Excel dosyası yüklenmedi</h3>
+              <p data-i18n="empty.desc">Başlamak için sağ üstteki "Excel Yükle" düğmesini kullanın ya da dosyayı buraya sürükleyip bırakın.</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">
+    <div id="toast-icon-container">
+      <i data-lucide="info" class="toast-icon" id="toast-icon" size="18"></i>
+    </div>
+    <div class="toast-info">
+      <div class="toast-title" id="toast-title"></div>
+      <div class="toast-desc" id="toast-desc"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="api-modal">
+    <div class="modal-card">
+      <h2 style="color: var(--warning); display: flex; align-items: center; gap: 8px;">
+        <i data-lucide="alert-triangle" size="20"></i>
+        <span data-i18n="modal.title">API anahtarı eksik</span>
+      </h2>
+      <p data-i18n="modal.desc">Bu işlem için sol taraftaki API Ayarları bölümüne, seçili servis sağlayıcıya ait geçerli bir API anahtarı girin ve tekrar deneyin.</p>
+      <div class="modal-footer">
+        <button type="button" class="btn-primary" onclick="closeApiModal()" data-i18n="modal.ok">Anladım</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =====================================================================
+    // Localization (TR / EN)
+    // Static markup uses data-i18n / data-i18n-placeholder / data-i18n-title
+    // attributes; dynamic text goes through t(key, params).
+    // =====================================================================
+
+    const I18N = {
+      tr: {
+        "lang.switch": "Switch to English",
+        "theme.toggle": "Temayı değiştir",
+        "file.none": "Dosya yüklenmedi",
+        "file.loaded": "{name} ({n} satır)",
+        "btn.upload": "Excel Yükle",
+        "btn.template": "Şablon İndir",
+        "btn.fix": "Uyumsuzları Düzelt",
+        "btn.stop": "Durdur",
+        "btn.export": "Excel'e Aktar",
+        "btn.clear": "Temizle",
+        "btn.map": "Harita",
+        "btn.start": "Başlat",
+        "btn.startSelected": "Seçilileri Çalıştır ({n})",
+        "side.api": "API Ayarları",
+        "side.provider": "Servis Sağlayıcı",
+        "side.googleKey": "Google Maps API Anahtarı",
+        "side.yandexKey": "Yandex API Anahtarı",
+        "side.keyPlaceholder": "API anahtarı...",
+        "side.usePlaces": "Places API (New) kullan",
+        "side.placesHint": "İşletme adıyla arama yapar (ücretli). Kapalıyken yalnızca Geocoding kullanılır ve adresi boş satırlar bulunamaz.",
+        "side.saveKeys": "Anahtarları bu tarayıcıda hatırla",
+        "side.run": "Çalışma Ayarları",
+        "side.threshold": "Doğrulama Eşiği (metre)",
+        "side.onlyMissing": "Yalnızca adresi boş olanlar",
+        "side.geocodeHint": "Adres sütununa göre koordinat bulunur. Bir veya daha fazla satır seçerseniz yalnızca seçilenler işlenir.",
+        "tab.geocode": "Adres → Koordinat",
+        "tab.reverse": "Koordinat → Adres",
+        "tab.validate": "Konum Doğrulama",
+        "map.base": "Altlık:",
+        "map.layer.osm": "OpenStreetMap",
+        "map.layer.satellite": "Uydu (Esri)",
+        "map.layer.hybrid": "Hibrit (Esri)",
+        "map.plotted": "{p} / {t} nokta haritada",
+        "map.pending": "Bekliyor",
+        "table.search": "Tabloda ara...",
+        "table.filtered": "<strong>{v}</strong> / <strong>{t}</strong> satır gösteriliyor • <strong>{s}</strong> seçili",
+        "table.loaded": "<strong>{t}</strong> satır yüklendi • <strong>{s}</strong> seçili",
+        "filter.name": "Nokta Adı:",
+        "filter.namePlaceholder": "İsim ara...",
+        "filter.il": "İl:",
+        "filter.ilce": "İlçe:",
+        "filter.all": "Tümü",
+        "col.id": "ID",
+        "col.name": "İsim",
+        "col.il": "İl",
+        "col.ilce": "İlçe",
+        "col.address": "Adres",
+        "col.latitude": "Enlem",
+        "col.longitude": "Boylam",
+        "col.status": "Durum",
+        "col.note": "Not",
+        "empty.title": "Henüz Excel dosyası yüklenmedi",
+        "empty.desc": "Başlamak için sağ üstteki \"Excel Yükle\" düğmesini kullanın ya da dosyayı buraya sürükleyip bırakın.",
+        "modal.title": "API anahtarı eksik",
+        "modal.desc": "Bu işlem için sol taraftaki API Ayarları bölümüne, seçili servis sağlayıcıya ait geçerli bir API anahtarı girin ve tekrar deneyin.",
+        "modal.ok": "Anladım",
+        "toast.error": "Hata",
+        "toast.warn": "Uyarı",
+        "toast.info": "Bilgi",
+        "toast.success": "Başarılı",
+        "toast.stopped": "Durduruldu",
+        "msg.onlyExcel": "Yalnızca Excel dosyaları (.xlsx, .xlsm, .xls) desteklenir.",
+        "msg.reading": "Excel dosyası okunuyor...",
+        "msg.emptySheet": "Excel dosyasının ilk sayfası boş.",
+        "msg.noNameAddr": "Excel dosyasında 'İsim' veya 'Adres' sütunu bulunamadı.",
+        "msg.loaded": "{n} satır yüklendi.",
+        "msg.noErrorRows": "Durum veya not içeren satır bulunamadı; tüm satırlar aktarılıyor.",
+        "msg.exported": "{n} satır Excel'e aktarıldı.",
+        "msg.templateDone": "Boş Excel şablonu indirildi.",
+        "msg.noRows": "İşlenecek satır bulunamadı.",
+        "msg.sdkFail": "Google Maps yüklenemedi.",
+        "msg.started": "İşlem başladı.",
+        "msg.cancelled": "İşlem durduruldu.",
+        "msg.done": "İşlem tamamlandı.",
+        "msg.cleared": "Veriler temizlendi.",
+        "job.starting": "Başlatılıyor...",
+        "job.loadingSdk": "Google Maps yükleniyor...",
+        "job.sdkFail": "Google Maps yüklenemedi: {err}",
+        "job.noRows": "İşlenecek uygun satır bulunamadı.",
+        "job.stopped": "Durduruldu.",
+        "job.done": "Tamamlandı.",
+        "job.op.geocode": "Koordinat aranıyor",
+        "job.op.reverse": "Adres aranıyor",
+        "job.op.validate": "Doğrulanıyor",
+        "job.op.fix_mismatches": "Düzeltiliyor",
+        "sheet.data": "POI Verileri",
+        "sheet.template": "POI Şablonu",
+        "file.template": "POI_Sablon.xlsx",
+        "status.geocoded": "Konum Bulundu",
+        "status.reverse_geocoded": "Adres Bulundu",
+        "status.match": "Uyumlu",
+        "status.mismatch": "Uyumsuz",
+        "status.geocode_error": "Konum Bulunamadı",
+        "status.district_conflict": "İlçe Çelişkisi",
+        "status.reverse_error": "Adres Bulunamadı",
+        "status.coord_error": "Geçersiz Koordinat",
+        "status.coord_missing": "Koordinat Eksik",
+        "status.no_address": "Adres Yok",
+        "status.name_not_found": "İsimle Bulunamadı",
+        "status.validate_failed": "Doğrulanamadı",
+        "status.skipped": "Atlandı",
+        "note.districtConflictDefault": "Adres ile İlçe sütunu uyuşmuyor; Google'ın bulduğu koordinat kullanıldı.",
+        "note.nameNotFoundDefault": "İşletme adıyla uygun bir Google Places sonucu bulunamadı.",
+        "note.unverified": "⚠ Konum doğrulanamadı.",
+        "note.noResult": "Sonuç bulunamadı.",
+        "note.invalidCoord": "Geçersiz koordinat.",
+        "note.noOrigCoord": "Satırda doğrulanacak koordinat yok.",
+        "note.validated": "Doğrulandı ({d} m) | {provider}: {addr}",
+        "note.mismatch": "Fark: {d} m. Bulunan: {addr} ({lat}, {lng})",
+        "note.validateFailed": "Adres bulunamadı; konum doğrulanamadı.",
+        "note.fixed": "Koordinat düzeltildi → {addr}",
+        "note.fixFailed": "Düzeltme başarısız: {err}",
+        "note.addressNotFound": "Adres bulunamadı",
+        "err.sdkObject": "Google Maps nesnesi oluşturulamadı.",
+        "err.sdkLoad": "Google Maps yüklenemedi. İnternet bağlantınızı ve API anahtarınızı kontrol edin.",
+        "err.sdkNotLoaded": "Google Maps yüklenmedi.",
+        "err.geocoder": "Google Geocoding hatası: {s}",
+        "err.reverse": "Koordinattan adres bulunamadı: {s}",
+        "err.importLibrary": "Google Maps importLibrary kullanılamıyor. Sayfayı yenileyip tekrar deneyin.",
+        "err.placesLoad": "Places API (New) yüklenemedi.",
+        "err.placesOff": "Places API (New) kapalı.",
+        "err.placesZero": "Places API (New) sonuç bulamadı.",
+        "err.places": "Places API (New) hatası: {m}",
+        "err.placesIncomplete": "Places API (New) isteği tamamlanamadı.",
+        "err.keyInvalid": "API anahtarı geçersiz ya da yetkisiz.",
+        "err.yandexZero": "Yandex sonuç bulamadı.",
+        "err.yandexCoord": "Yandex geçersiz koordinat döndürdü.",
+        "err.request": "İstek hatası: {m}",
+        "err.districtExplicit": "Adreste \"{d}\", İlçe sütununda \"{ilce}\" yazıyor. ",
+        "err.districtResult": "Bulunan sonuç İlçe sütunundaki \"{ilce}\" ile uyuşmuyor. ",
+        "err.districtConflict": "İlçe çelişkisi: {detail}Places API (New), \"{name}\" için \"{addr}\" konumunu buldu; bu koordinat kullanıldı.",
+        "err.unnamedPlace": "Adsız yer",
+        "err.nameNotFoundRegion": "\"{name}\" için {region} bölgesinde uygun işletme bulunamadı.",
+        "err.placesOffNoAddr": "Adres boş ve Places API (New) kapalı; yalnızca isimle arama yapılamaz.",
+        "err.emptyRow": "İsim ve adres boş; koordinat aranmadı.",
+        "err.approxOnly": "Google yalnızca il/ilçe düzeyinde yaklaşık bir sonuç döndürdü; koordinat kabul edilmedi."
+      },
+      en: {
+        "lang.switch": "Türkçe'ye geç",
+        "theme.toggle": "Toggle theme",
+        "file.none": "No file loaded",
+        "file.loaded": "{name} ({n} rows)",
+        "btn.upload": "Upload Excel",
+        "btn.template": "Download Template",
+        "btn.fix": "Fix Mismatches",
+        "btn.stop": "Stop",
+        "btn.export": "Export to Excel",
+        "btn.clear": "Clear",
+        "btn.map": "Map",
+        "btn.start": "Start",
+        "btn.startSelected": "Run Selected ({n})",
+        "side.api": "API Settings",
+        "side.provider": "Provider",
+        "side.googleKey": "Google Maps API Key",
+        "side.yandexKey": "Yandex API Key",
+        "side.keyPlaceholder": "API key...",
+        "side.usePlaces": "Use Places API (New)",
+        "side.placesHint": "Searches by business name (paid). When off, only Geocoding is used and rows without an address cannot be found.",
+        "side.saveKeys": "Remember keys in this browser",
+        "side.run": "Run Settings",
+        "side.threshold": "Validation threshold (meters)",
+        "side.onlyMissing": "Only rows with an empty address",
+        "side.geocodeHint": "Coordinates are looked up from the Address column. If you select one or more rows, only those are processed.",
+        "tab.geocode": "Address → Coordinates",
+        "tab.reverse": "Coordinates → Address",
+        "tab.validate": "Validate Location",
+        "map.base": "Base map:",
+        "map.layer.osm": "OpenStreetMap",
+        "map.layer.satellite": "Satellite (Esri)",
+        "map.layer.hybrid": "Hybrid (Esri)",
+        "map.plotted": "{p} / {t} points on map",
+        "map.pending": "Pending",
+        "table.search": "Search table...",
+        "table.filtered": "Showing <strong>{v}</strong> / <strong>{t}</strong> rows • <strong>{s}</strong> selected",
+        "table.loaded": "<strong>{t}</strong> rows loaded • <strong>{s}</strong> selected",
+        "filter.name": "Name:",
+        "filter.namePlaceholder": "Search name...",
+        "filter.il": "Province:",
+        "filter.ilce": "District:",
+        "filter.all": "All",
+        "col.id": "ID",
+        "col.name": "Name",
+        "col.il": "Province",
+        "col.ilce": "District",
+        "col.address": "Address",
+        "col.latitude": "Latitude",
+        "col.longitude": "Longitude",
+        "col.status": "Status",
+        "col.note": "Note",
+        "empty.title": "No Excel file loaded yet",
+        "empty.desc": "Use the \"Upload Excel\" button at the top right, or drag and drop a file here to get started.",
+        "modal.title": "API key missing",
+        "modal.desc": "Enter a valid API key for the selected provider in the API Settings panel on the left, then try again.",
+        "modal.ok": "Got it",
+        "toast.error": "Error",
+        "toast.warn": "Warning",
+        "toast.info": "Info",
+        "toast.success": "Done",
+        "toast.stopped": "Stopped",
+        "msg.onlyExcel": "Only Excel files (.xlsx, .xlsm, .xls) are supported.",
+        "msg.reading": "Reading Excel file...",
+        "msg.emptySheet": "The first sheet of the Excel file is empty.",
+        "msg.noNameAddr": "No 'Name' or 'Address' column was found in the Excel file.",
+        "msg.loaded": "{n} rows loaded.",
+        "msg.noErrorRows": "No rows with a status or note were found; exporting all rows.",
+        "msg.exported": "{n} rows exported to Excel.",
+        "msg.templateDone": "Empty Excel template downloaded.",
+        "msg.noRows": "No rows to process.",
+        "msg.sdkFail": "Could not load Google Maps.",
+        "msg.started": "Processing started.",
+        "msg.cancelled": "Processing stopped.",
+        "msg.done": "Processing finished.",
+        "msg.cleared": "Data cleared.",
+        "job.starting": "Starting...",
+        "job.loadingSdk": "Loading Google Maps...",
+        "job.sdkFail": "Could not load Google Maps: {err}",
+        "job.noRows": "No eligible rows to process.",
+        "job.stopped": "Stopped.",
+        "job.done": "Finished.",
+        "job.op.geocode": "Geocoding",
+        "job.op.reverse": "Reverse geocoding",
+        "job.op.validate": "Validating",
+        "job.op.fix_mismatches": "Fixing",
+        "sheet.data": "POI Data",
+        "sheet.template": "POI Template",
+        "file.template": "POI_Template.xlsx",
+        "status.geocoded": "Located",
+        "status.reverse_geocoded": "Address Found",
+        "status.match": "Match",
+        "status.mismatch": "Mismatch",
+        "status.geocode_error": "Not Found",
+        "status.district_conflict": "District Conflict",
+        "status.reverse_error": "Address Not Found",
+        "status.coord_error": "Invalid Coordinates",
+        "status.coord_missing": "Missing Coordinates",
+        "status.no_address": "No Address",
+        "status.name_not_found": "Name Not Found",
+        "status.validate_failed": "Not Validated",
+        "status.skipped": "Skipped",
+        "note.districtConflictDefault": "The address does not match the District column; the coordinate found by Google was used.",
+        "note.nameNotFoundDefault": "No suitable Google Places result was found for the business name.",
+        "note.unverified": "⚠ Location could not be verified.",
+        "note.noResult": "No result found.",
+        "note.invalidCoord": "Invalid coordinates.",
+        "note.noOrigCoord": "The row has no coordinates to validate.",
+        "note.validated": "Validated ({d} m) | {provider}: {addr}",
+        "note.mismatch": "Distance: {d} m. Found: {addr} ({lat}, {lng})",
+        "note.validateFailed": "Address not found; location could not be validated.",
+        "note.fixed": "Coordinates corrected → {addr}",
+        "note.fixFailed": "Fix failed: {err}",
+        "note.addressNotFound": "Address not found",
+        "err.sdkObject": "Could not create the Google Maps object.",
+        "err.sdkLoad": "Could not load Google Maps. Check your internet connection and API key.",
+        "err.sdkNotLoaded": "Google Maps is not loaded.",
+        "err.geocoder": "Google Geocoding error: {s}",
+        "err.reverse": "No address found for the coordinates: {s}",
+        "err.importLibrary": "Google Maps importLibrary is unavailable. Reload the page and try again.",
+        "err.placesLoad": "Could not load Places API (New).",
+        "err.placesOff": "Places API (New) is turned off.",
+        "err.placesZero": "Places API (New) returned no results.",
+        "err.places": "Places API (New) error: {m}",
+        "err.placesIncomplete": "The Places API (New) request could not be completed.",
+        "err.keyInvalid": "The API key is invalid or not authorized.",
+        "err.yandexZero": "Yandex returned no results.",
+        "err.yandexCoord": "Yandex returned invalid coordinates.",
+        "err.request": "Request error: {m}",
+        "err.districtExplicit": "The address says \"{d}\" but the District column says \"{ilce}\". ",
+        "err.districtResult": "The result does not match \"{ilce}\" in the District column. ",
+        "err.districtConflict": "District conflict: {detail}Places API (New) found \"{addr}\" for \"{name}\"; that coordinate was used.",
+        "err.unnamedPlace": "Unnamed place",
+        "err.nameNotFoundRegion": "No matching business found for \"{name}\" in {region}.",
+        "err.placesOffNoAddr": "The address is empty and Places API (New) is off; searching by name alone is not possible.",
+        "err.emptyRow": "Name and address are empty; no lookup was made.",
+        "err.approxOnly": "Google only returned an approximate province/district-level result; the coordinate was not accepted."
+      }
+    };
+
+    let currentLang = "tr";
+
+    function t(key, params = {}) {
+      const dict = I18N[currentLang] || I18N.tr;
+      let text = dict[key] ?? I18N.tr[key] ?? key;
+      for (const [name, value] of Object.entries(params)) {
+        text = text.split(`{${name}}`).join(String(value));
+      }
+      return text;
+    }
+
+    function applyStaticTranslations() {
+      document.documentElement.lang = currentLang;
+      document.querySelectorAll("[data-i18n]").forEach(el => {
+        el.textContent = t(el.dataset.i18n);
+      });
+      document.querySelectorAll("[data-i18n-placeholder]").forEach(el => {
+        el.placeholder = t(el.dataset.i18nPlaceholder);
+      });
+      document.querySelectorAll("[data-i18n-title]").forEach(el => {
+        el.title = t(el.dataset.i18nTitle);
+      });
+      const langBtn = document.getElementById("btn-toggle-lang");
+      if (langBtn) langBtn.textContent = currentLang === "tr" ? "EN" : "TR";
+    }
+
+    function initLanguage() {
+      let saved = null;
+      try { saved = localStorage.getItem("poi_lang"); } catch (e) { /* storage unavailable */ }
+      if (saved === "tr" || saved === "en") {
+        currentLang = saved;
+      } else {
+        currentLang = (navigator.language || "").toLowerCase().startsWith("tr") ? "tr" : "en";
+      }
+      applyStaticTranslations();
+    }
+
+    function toggleLanguage() {
+      currentLang = currentLang === "tr" ? "en" : "tr";
+      try { localStorage.setItem("poi_lang", currentLang); } catch (e) { /* storage unavailable */ }
+      applyStaticTranslations();
+      refreshDynamicTexts();
+    }
+
+    // Re-renders everything that is built from JS rather than static markup.
+    function refreshDynamicTexts() {
+      updateStartButtonLabel();
+      document.querySelectorAll("#filter-il option[value=''], #filter-ilce option[value='']").forEach(opt => {
+        opt.textContent = t("filter.all");
+      });
+      if (dataset.rows.length > 0) {
+        document.getElementById("loaded-file-name").innerText = t("file.loaded", { name: dataset.name, n: dataset.rows.length });
+        renderTableRowsOnly();
+      }
+      updateTableMetaBar();
+      if (job.status === "running") updateJobUI();
+      if (isMapVisible) renderMap({ fitBounds: false });
+    }
+
+    // =====================================================================
+    // Row statuses
+    // Rows store a language-neutral status code; the label is resolved at
+    // render/export time. Labels read from an imported Excel file (in either
+    // language, including labels from older versions) are mapped back to codes.
+    // =====================================================================
+
+    const STATUS_CLASS_MAP = {
+      match: "ok",
+      geocoded: "ok",
+      reverse_geocoded: "ok",
+      mismatch: "bad",
+      geocode_error: "bad",
+      district_conflict: "bad",
+      reverse_error: "bad",
+      coord_error: "bad",
+      coord_missing: "warn",
+      no_address: "warn",
+      name_not_found: "warn",
+      validate_failed: "warn",
+      skipped: "info"
+    };
+
+    const LEGACY_STATUS_LABELS = {
+      "geocoded": "geocoded",
+      "reverse geocoded": "reverse_geocoded",
+      "geocode hatasi": "geocode_error",
+      "rev. geocode hatasi": "reverse_error",
+      "koordinat hatasi": "coord_error",
+      "geocode basarisiz": "validate_failed"
+    };
+
+    function statusLabel(code) {
+      if (!code) return "";
+      return STATUS_CLASS_MAP[code] ? t(`status.${code}`) : code;
+    }
+
+    function statusFromLabel(label) {
+      const folded = foldText(label).trim();
+      if (!folded) return "";
+      for (const code of Object.keys(STATUS_CLASS_MAP)) {
+        if (foldText(I18N.tr[`status.${code}`]) === folded || foldText(I18N.en[`status.${code}`]) === folded) {
+          return code;
+        }
+      }
+      return LEGACY_STATUS_LABELS[folded] || String(label).trim();
+    }
+
+    // The "location could not be verified" warning lives in the note text so it
+    // survives an Excel round trip; detect it in both languages.
+    const UNVERIFIED_MARKERS = ["konum dogrulanamadi", "location could not be verified"];
+
+    function isUnverifiedNote(note) {
+      const folded = foldText(note);
+      return UNVERIFIED_MARKERS.some(marker => folded.includes(marker));
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    // =====================================================================
+    // App state and configuration
+    // =====================================================================
+
+    let dataset = {
+      name: "",
+      rows: [],
+      columns: []
+    };
+    let selectedRows = new Set();
+    let currentTab = "geocode";
+    let googleMapsLoaded = false;
+    let geocoder = null;
+    let googlePlaceClass = null;
+    const googleLocationBiasCache = new Map();
+    let mapInstance = null;
+    let markersGroup = null;
+    let activeTileLayer = null;
+    let isMapVisible = false;
+    
+    let activeCancelToken = { cancelled: false };
+    
+    const job = {
+      status: "idle",
+      current: 0,
+      total: 0,
+      message: ""
+    };
+
+    const config = {
+      provider: "google",
+      googleApiKey: "",
+      yandexApiKey: "",
+      usePlaces: false,
+      saveKeys: true,
+      thresholdMeters: 500,
+      delayMs: 50,
+      onlyMissingAddress: true
+    };
+
+    const REQUIRED_COLS = ["id", "name", "address", "latitude", "longitude"];
+    const ALL_COLS = ["id", "name", "il", "ilce", "address", "latitude", "longitude", "status", "note"];
+    
+    // Excel header (folded: lowercase, Turkish characters stripped) → internal column.
+    const DEFAULT_HEADER_MAP = {
+      "id": "id",
+      
+      "isim": "name",
+      "name": "name",
+      "adi": "name",
+      "nokta ismi": "name",
+      "nokta adi": "name",
+      "poi adi": "name",
+      "poi ismi": "name",
+      "baslik": "name",
+      "title": "name",
+      
+      "il": "il",
+      "city": "il",
+      "province": "il",
+      "sehir": "il",
+      
+      "ilce": "ilce",
+      "district": "ilce",
+      
+      "adres": "address",
+      "address": "address",
+      "acik adres": "address",
+      
+      "enlem": "latitude",
+      "latitude": "latitude",
+      "lat": "latitude",
+      
+      "boylam": "longitude",
+      "longitude": "longitude",
+      "lon": "longitude",
+      "lng": "longitude",
+      
+      "durum": "status",
+      "status": "status",
+      
+      "not": "note",
+      "note": "note",
+      "aciklama": "note"
+    };
+
+    const PROVIDER_NAMES = { google: "Google", yandex: "Yandex" };
+
+    // =====================================================================
+    // Startup and UI event wiring
+    // =====================================================================
+
+    window.addEventListener("DOMContentLoaded", () => {
+      initLanguage();
+      initTheme();
+
+      lucide.createIcons();
+
+      loadSavedKeys();
+
+      setupEventHandlers();
+
+      setupDragAndDrop();
+
+      switchTab("geocode");
+    });
+
+    function setupEventHandlers() {
+      document.getElementById("btn-toggle-theme").addEventListener("click", toggleTheme);
+      document.getElementById("btn-toggle-lang").addEventListener("click", toggleLanguage);
+      document.getElementById("provider-select").addEventListener("change", (e) => {
+        config.provider = e.target.value;
+        if (config.provider === "google") {
+          document.getElementById("google-key-group").style.display = "flex";
+          document.getElementById("places-toggle-group").style.display = "flex";
+          document.getElementById("yandex-key-group").style.display = "none";
+        } else {
+          document.getElementById("google-key-group").style.display = "none";
+          document.getElementById("places-toggle-group").style.display = "none";
+          document.getElementById("yandex-key-group").style.display = "flex";
+        }
+        updateButtonStates();
+      });
+
+      document.getElementById("chk-use-places").addEventListener("change", (e) => {
+        config.usePlaces = e.target.checked;
+        localStorage.setItem("poi_use_places", config.usePlaces);
+      });
+
+      document.getElementById("google-key-input").addEventListener("input", (e) => {
+        config.googleApiKey = e.target.value;
+        if (config.saveKeys) saveKeysToStorage();
+        updateButtonStates();
+      });
+
+      document.getElementById("yandex-key-input").addEventListener("input", (e) => {
+        config.yandexApiKey = e.target.value;
+        if (config.saveKeys) saveKeysToStorage();
+        updateButtonStates();
+      });
+
+      document.getElementById("chk-save-keys").addEventListener("change", (e) => {
+        config.saveKeys = e.target.checked;
+        if (config.saveKeys) {
+          saveKeysToStorage();
+        } else {
+          localStorage.removeItem("poi_google_key");
+          localStorage.removeItem("poi_yandex_key");
+        }
+      });
+
+      document.getElementById("threshold-input").addEventListener("change", (e) => {
+        config.thresholdMeters = Math.max(1, parseInt(e.target.value) || 500);
+      });
+
+
+
+      document.getElementById("chk-only-missing-addr").addEventListener("change", (e) => {
+        config.onlyMissingAddress = e.target.checked;
+      });
+
+
+
+      document.getElementById("excel-file-input").addEventListener("change", (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+          importExcelFile(e.target.files[0]);
+        }
+      });
+
+      document.getElementById("btn-start-job").addEventListener("click", () => {
+        startBatchJob(currentTab);
+      });
+
+      document.getElementById("btn-fix-mismatches").addEventListener("click", () => {
+        startBatchJob("fix_mismatches");
+      });
+
+      document.getElementById("btn-stop-job").addEventListener("click", () => {
+        activeCancelToken.cancelled = true;
+        document.getElementById("btn-stop-job").disabled = true;
+      });
+
+      document.getElementById("btn-download-template").addEventListener("click", downloadExcelTemplate);
+      document.getElementById("btn-download-all").addEventListener("click", () => exportExcelFile("all"));
+      document.getElementById("btn-clear-dataset").addEventListener("click", clearDataset);
+      
+      document.getElementById("btn-toggle-map").addEventListener("click", toggleMapPanel);
+
+      document.getElementById("th-select-all").addEventListener("change", (e) => {
+        const isChecked = e.target.checked;
+        selectedRows.clear();
+        if (isChecked && dataset.rows.length > 0) {
+          dataset.rows.forEach((_, idx) => selectedRows.add(idx));
+        }
+        renderTableRowsOnly();
+        updateTableMetaBar();
+      });
+
+      document.getElementById("search-input").addEventListener("input", () => {
+        applyFiltersAndRender();
+      });
+
+      document.getElementById("filter-id").addEventListener("input", () => {
+        applyFiltersAndRender();
+      });
+      document.getElementById("filter-name").addEventListener("input", () => {
+        applyFiltersAndRender();
+      });
+      document.getElementById("filter-il").addEventListener("change", () => {
+        updateIlceDropdown();
+        applyFiltersAndRender();
+      });
+      document.getElementById("filter-ilce").addEventListener("change", () => {
+        applyFiltersAndRender();
+      });
+      document.getElementById("btn-clear-filters").addEventListener("click", () => {
+        document.getElementById("filter-id").value = "";
+        document.getElementById("filter-name").value = "";
+        document.getElementById("filter-il").value = "";
+        updateIlceDropdown();
+        document.getElementById("filter-ilce").value = "";
+        applyFiltersAndRender();
+      });
+    }
+
+    function loadSavedKeys() {
+      const google = localStorage.getItem("poi_google_key");
+      const yandex = localStorage.getItem("poi_yandex_key");
+      const save = localStorage.getItem("poi_save_keys") !== "false";
+      
+      config.saveKeys = save;
+      document.getElementById("chk-save-keys").checked = save;
+
+      config.usePlaces = localStorage.getItem("poi_use_places") === "true";
+      document.getElementById("chk-use-places").checked = config.usePlaces;
+      
+      if (google) {
+        config.googleApiKey = google;
+        document.getElementById("google-key-input").value = google;
+      }
+      if (yandex) {
+        config.yandexApiKey = yandex;
+        document.getElementById("yandex-key-input").value = yandex;
+      }
+    }
+
+    function saveKeysToStorage() {
+      localStorage.setItem("poi_save_keys", config.saveKeys);
+      if (config.saveKeys) {
+        localStorage.setItem("poi_google_key", config.googleApiKey);
+        localStorage.setItem("poi_yandex_key", config.yandexApiKey);
+      }
+    }
+
+    function togglePasswordVisibility(id) {
+      const el = document.getElementById(id);
+      if (el.type === "password") {
+        el.type = "text";
+      } else {
+        el.type = "password";
+      }
+    }
+
+    function switchTab(tab) {
+      if (job.status === "running") return;
+      
+      currentTab = tab;
+      
+      document.querySelectorAll(".tab-segmented button").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.tab === tab);
+      });
+
+      document.getElementById("opt-geocode-hint").style.display = tab === "geocode" ? "block" : "none";
+      document.getElementById("opt-reverse-group").style.display = tab === "reverse" ? "block" : "none";
+      document.getElementById("opt-threshold-group").style.display = tab === "validate" ? "block" : "none";
+      
+      document.getElementById("btn-fix-mismatches").style.display = tab === "validate" ? "inline-flex" : "none";
+      
+      updateStartButtonLabel();
+    }
+
+    function updateStartButtonLabel() {
+      const label = document.getElementById("start-btn-label");
+      label.innerText = selectedRows.size > 0
+        ? t("btn.startSelected", { n: selectedRows.size })
+        : t("btn.start");
+    }
+
+    // =====================================================================
+    // Excel import / export
+    // =====================================================================
+
+    function setupDragAndDrop() {
+      const dropZone = document.querySelector(".table-shell");
+      
+      window.addEventListener("dragover", (e) => e.preventDefault());
+      window.addEventListener("drop", (e) => e.preventDefault());
+      
+      dropZone.addEventListener("dragenter", (e) => {
+        dropZone.style.background = "rgba(79, 70, 229, 0.05)";
+      });
+      
+      dropZone.addEventListener("dragleave", (e) => {
+        dropZone.style.background = "";
+      });
+      
+      dropZone.addEventListener("drop", (e) => {
+        dropZone.style.background = "";
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+          const suffix = files[0].name.split(".").pop().toLowerCase();
+          if (["xlsx", "xlsm", "xls"].includes(suffix)) {
+            importExcelFile(files[0]);
+          } else {
+            showToast(t("toast.error"), t("msg.onlyExcel"), "error");
+          }
+        }
+      });
+    }
+
+    function importExcelFile(file) {
+      const reader = new FileReader();
+      
+      showToast(t("toast.info"), t("msg.reading"), "info");
+      
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          
+          const matrix = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          if (matrix.length === 0) {
+            throw new Error(t("msg.emptySheet"));
+          }
+          
+          const rawHeaders = matrix[0].map(h => String(h).trim());
+          
+          const headerMap = {};
+          rawHeaders.forEach(h => {
+            const hFolded = foldText(h).trim();
+            if (DEFAULT_HEADER_MAP[hFolded]) {
+              headerMap[h] = DEFAULT_HEADER_MAP[hFolded];
+            }
+          });
+          
+          const hasName = Object.values(headerMap).includes("name");
+          const hasAddress = Object.values(headerMap).includes("address");
+          if (!hasName && !hasAddress) {
+            showToast(t("toast.warn"), t("msg.noNameAddr"), "warn");
+          }
+          
+          const parsedRows = [];
+          for (let r = 1; r < matrix.length; r++) {
+            const rawRow = matrix[r];
+            if (rawRow.length === 0 || rawRow.every(cell => cell === null || cell === undefined || String(cell).trim() === "")) {
+              continue;
+            }
+            
+            const item = {
+              id: "",
+              name: "",
+              il: "",
+              ilce: "",
+              address: "",
+              latitude: "",
+              longitude: "",
+              status: "",
+              note: "",
+              _orig: {}
+            };
+            
+            rawHeaders.forEach((h, cIdx) => {
+              const val = rawRow[cIdx] !== undefined && rawRow[cIdx] !== null ? String(rawRow[cIdx]).trim() : "";
+              const internal = headerMap[h];
+              if (internal) {
+                if (internal === "latitude" || internal === "longitude") {
+                  const num = parseFloat(val.replace(",", "."));
+                  item[internal] = isNaN(num) ? "" : num;
+                } else if (internal === "status") {
+                  item.status = statusFromLabel(val);
+                } else {
+                  item[internal] = val;
+                }
+              } else {
+                item._orig[h] = val;
+              }
+            });
+            
+            if (!item.id) {
+              item.id = String(r);
+            }
+            
+            parsedRows.push(item);
+          }
+          
+          dataset.name = file.name;
+          dataset.rows = parsedRows;
+          dataset.columns = rawHeaders;
+          
+          selectedRows.clear();
+          
+          document.getElementById("loaded-file-name").innerText = t("file.loaded", { name: file.name, n: parsedRows.length });
+          document.getElementById("search-input").disabled = false;
+          document.getElementById("th-select-all").disabled = false;
+          
+          document.getElementById("search-input").value = "";
+          
+          populateFilterDropdowns();
+          renderTable();
+          
+          updateButtonStates();
+          
+          showToast(t("toast.success"), t("msg.loaded", { n: parsedRows.length }), "success");
+          
+          if (isMapVisible) {
+            renderMap();
+          }
+          
+        } catch (err) {
+          console.error(err);
+          showToast(t("toast.error"), err.message, "error");
+        }
+      };
+      
+      reader.readAsArrayBuffer(file);
+    }
+
+    function populateFilterDropdowns() {
+      const ilSelect = document.getElementById("filter-il");
+      const ilceSelect = document.getElementById("filter-ilce");
+      
+      ilSelect.innerHTML = `<option value="">${t("filter.all")}</option>`;
+      ilceSelect.innerHTML = `<option value="">${t("filter.all")}</option>`;
+
+      if (dataset.rows.length === 0) return;
+      
+      const uniqueIls = new Set();
+      const ilMap = {};
+      
+      dataset.rows.forEach(r => {
+        const il = (r.il || "").trim();
+        if (il) {
+          const folded = foldText(il);
+          uniqueIls.add(folded);
+          if (!ilMap[folded] || il.match(/[A-ZĞÜŞİÖÇ]/)) {
+            ilMap[folded] = il;
+          }
+        }
+      });
+      
+      Array.from(uniqueIls).sort().forEach(folded => {
+        const orig = ilMap[folded];
+        const opt = document.createElement("option");
+        opt.value = folded;
+        opt.innerText = orig;
+        ilSelect.appendChild(opt);
+      });
+      
+      updateIlceDropdown();
+    }
+
+    function updateIlceDropdown() {
+      const ilSelect = document.getElementById("filter-il");
+      const ilceSelect = document.getElementById("filter-ilce");
+      const selectedIlFolded = ilSelect.value;
+      
+      ilceSelect.innerHTML = `<option value="">${t("filter.all")}</option>`;
+
+      const uniqueIlces = new Set();
+      const ilceMap = {};
+      
+      dataset.rows.forEach(r => {
+        const il = (r.il || "").trim();
+        const ilce = (r.ilce || "").trim();
+        if (ilce) {
+          const ilFolded = foldText(il);
+          if (!selectedIlFolded || ilFolded === selectedIlFolded) {
+            const ilceFolded = foldText(ilce);
+            uniqueIlces.add(ilceFolded);
+            if (!ilceMap[ilceFolded] || ilce.match(/[A-ZĞÜŞİÖÇ]/)) {
+              ilceMap[ilceFolded] = ilce;
+            }
+          }
+        }
+      });
+      
+      Array.from(uniqueIlces).sort().forEach(folded => {
+        const orig = ilceMap[folded];
+        const opt = document.createElement("option");
+        opt.value = folded;
+        opt.innerText = orig;
+        ilceSelect.appendChild(opt);
+      });
+    }
+
+    function applyFiltersAndRender() {
+      renderTableRowsOnly();
+      updateTableMetaBar();
+      if (isMapVisible) {
+        renderMap();
+      }
+    }
+
+    function exportExcelFile(mode) {
+      if (dataset.rows.length === 0) return;
+      
+      let rowsToExport = [];
+      if (mode === "errors") {
+        rowsToExport = dataset.rows.filter(r => r.status.trim() !== "" || r.note.trim() !== "");
+        if (rowsToExport.length === 0) {
+          showToast(t("toast.info"), t("msg.noErrorRows"), "info");
+          rowsToExport = dataset.rows;
+        }
+      } else {
+        rowsToExport = dataset.rows;
+      }
+      
+      const headers = ALL_COLS.map(c => t(`col.${c}`));
+
+      const extraHeaders = new Set();
+      dataset.rows.forEach(r => {
+        Object.keys(r._orig).forEach(k => extraHeaders.add(k));
+      });
+      const extraList = Array.from(extraHeaders);
+      const fullHeaders = headers.concat(extraList);
+      
+      const sheetData = [fullHeaders];
+      
+      rowsToExport.forEach(r => {
+        const rowArr = [];
+        rowArr.push(r.id);
+        rowArr.push(r.name);
+        rowArr.push(r.il);
+        rowArr.push(r.ilce);
+        rowArr.push(r.address);
+        rowArr.push(r.latitude);
+        rowArr.push(r.longitude);
+        rowArr.push(statusLabel(r.status));
+        rowArr.push(r.note);
+        
+        extraList.forEach(h => {
+          rowArr.push(r._orig[h] || "");
+        });
+        
+        sheetData.push(rowArr);
+      });
+      
+      const ws = XLSX.utils.aoa_to_sheet(sheetData);
+      
+      ws['!cols'] = [
+        { wch: 8 },
+        { wch: 22 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 45 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 15 },
+        { wch: 40 }
+      ];
+      
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, t("sheet.data"));
+      
+      const stem = dataset.name.substring(0, dataset.name.lastIndexOf('.')) || "poi_output";
+      const filename = `${stem}_${mode}.xlsx`;
+      
+      XLSX.writeFile(wb, filename);
+      showToast(t("toast.success"), t("msg.exported", { n: rowsToExport.length }), "success");
+    }
+
+    function downloadExcelTemplate() {
+      const headers = ALL_COLS.map(c => t(`col.${c}`));
+      const ws = XLSX.utils.aoa_to_sheet([headers]);
+      ws['!cols'] = [
+        { wch: 8 },
+        { wch: 22 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 45 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 15 },
+        { wch: 40 }
+      ];
+      
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, t("sheet.template"));
+      XLSX.writeFile(wb, t("file.template"));
+      showToast(t("toast.success"), t("msg.templateDone"), "success");
+    }
+
+    // =====================================================================
+    // Data table
+    // =====================================================================
+
+    function renderTable() {
+      const tableBody = document.getElementById("table-body");
+      const emptyView = document.getElementById("empty-state-view");
+      
+      if (dataset.rows.length === 0) {
+        tableBody.innerHTML = "";
+        emptyView.style.display = "flex";
+        return;
+      }
+      
+      emptyView.style.display = "none";
+      renderTableRowsOnly();
+      updateTableMetaBar();
+    }
+
+    function renderTableRowsOnly() {
+      const tableBody = document.getElementById("table-body");
+      
+      const filterId = foldText(document.getElementById("filter-id").value);
+      const filterName = foldText(document.getElementById("filter-name").value);
+      const filterIl = document.getElementById("filter-il").value;
+      const filterIlce = document.getElementById("filter-ilce").value;
+      const query = foldText(document.getElementById("search-input").value);
+      
+      let html = "";
+      let visibleCount = 0;
+      
+      dataset.rows.forEach((row, idx) => {
+        if (filterId && !foldText(row.id).includes(filterId)) return;
+        if (filterName && !foldText(row.name).includes(filterName)) return;
+        if (filterIl && foldText(row.il) !== filterIl) return;
+        if (filterIlce && foldText(row.ilce) !== filterIlce) return;
+        
+        if (query) {
+          const matchId = foldText(row.id).includes(query);
+          const matchName = foldText(row.name).includes(query);
+          const matchAddr = foldText(row.address).includes(query);
+          const matchNote = foldText(row.note).includes(query);
+          const matchStatus = foldText(statusLabel(row.status)).includes(query);
+          if (!matchId && !matchName && !matchAddr && !matchNote && !matchStatus) {
+            return;
+          }
+        }
+
+        visibleCount++;
+
+        const isSelected = selectedRows.has(idx);
+        const isUnverified = isUnverifiedNote(row.note);
+        const statusClass = STATUS_CLASS_MAP[row.status] || "";
+        const statusText = statusLabel(row.status);
+        const latVal = typeof row.latitude === "number" ? row.latitude.toFixed(6) : "";
+        const lonVal = typeof row.longitude === "number" ? row.longitude.toFixed(6) : "";
+
+        // Cell values come from the user's Excel file, so they are escaped.
+        html += `
+          <tr id="row-${idx}" class="${isSelected ? 'selected' : ''} ${isUnverified ? 'unverified' : ''}" onclick="handleRowClick(event, ${idx})">
+            <td class="select-cell">
+              <input type="checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleRowSelection(${idx})" />
+            </td>
+            <td>${escapeHtml(row.id)}</td>
+            <td>${escapeHtml(row.name)}</td>
+            <td id="row-il-${idx}">${escapeHtml(row.il)}</td>
+            <td id="row-ilce-${idx}">${escapeHtml(row.ilce)}</td>
+            <td class="cell-wrap" id="row-address-${idx}">${escapeHtml(row.address)}</td>
+            <td id="row-lat-${idx}">${latVal}</td>
+            <td id="row-lon-${idx}">${lonVal}</td>
+            <td id="row-status-${idx}">
+              ${statusText ? `<span class="status-badge ${statusClass}" id="row-status-badge-${idx}">${escapeHtml(statusText)}</span>` : ""}
+            </td>
+            <td class="cell-wrap" id="row-note-${idx}">${escapeHtml(row.note)}</td>
+          </tr>
+        `;
+      });
+      
+      tableBody.innerHTML = html;
+      dataset._visibleCount = visibleCount;
+    }
+
+    function handleRowClick(event, index) {
+      if (event.target.tagName === "INPUT" && event.target.type === "checkbox") {
+        return;
+      }
+      
+      toggleRowSelection(index);
+    }
+
+    function toggleRowSelection(index) {
+      if (selectedRows.has(index)) {
+        selectedRows.delete(index);
+        document.getElementById(`row-${index}`)?.classList.remove("selected");
+        const chk = document.querySelector(`#row-${index} td.select-cell input`);
+        if (chk) chk.checked = false;
+      } else {
+        selectedRows.add(index);
+        document.getElementById(`row-${index}`)?.classList.add("selected");
+        const chk = document.querySelector(`#row-${index} td.select-cell input`);
+        if (chk) chk.checked = true;
+      }
+      
+      const allChk = document.getElementById("th-select-all");
+      allChk.checked = selectedRows.size > 0 && selectedRows.size === dataset.rows.length;
+      
+      updateTableMetaBar();
+      updateStartButtonLabel();
+    }
+
+    function updateTableRowUI(index) {
+      const row = dataset.rows[index];
+      
+      const ilCell = document.getElementById(`row-il-${index}`);
+      if (ilCell) ilCell.innerText = row.il || "";
+
+      const ilceCell = document.getElementById(`row-ilce-${index}`);
+      if (ilceCell) ilceCell.innerText = row.ilce || "";
+
+      const addressCell = document.getElementById(`row-address-${index}`);
+      if (addressCell) addressCell.innerText = row.address || "";
+
+      const latCell = document.getElementById(`row-lat-${index}`);
+      if (latCell) latCell.innerText = typeof row.latitude === "number" ? row.latitude.toFixed(6) : "";
+      
+      const lonCell = document.getElementById(`row-lon-${index}`);
+      if (lonCell) lonCell.innerText = typeof row.longitude === "number" ? row.longitude.toFixed(6) : "";
+      
+      const noteCell = document.getElementById(`row-note-${index}`);
+      if (noteCell) noteCell.innerText = row.note;
+      
+      const statusCell = document.getElementById(`row-status-${index}`);
+      if (statusCell) {
+        if (row.status) {
+          const statusClass = STATUS_CLASS_MAP[row.status] || "";
+          statusCell.innerHTML = `<span class="status-badge ${statusClass}" id="row-status-badge-${index}">${escapeHtml(statusLabel(row.status))}</span>`;
+        } else {
+          statusCell.innerHTML = "";
+        }
+      }
+
+      const tr = document.getElementById(`row-${index}`);
+      if (tr) {
+        tr.classList.toggle("unverified", isUnverifiedNote(row.note));
+      }
+    }
+
+    function updateTableMetaBar() {
+      const info = document.getElementById("table-stats-info");
+      if (dataset.rows.length === 0) {
+        info.innerHTML = `<span>${t("file.none")}</span>`;
+        return;
+      }
+
+      const visible = dataset._visibleCount !== undefined ? dataset._visibleCount : dataset.rows.length;
+      const params = { v: visible, t: dataset.rows.length, s: selectedRows.size };
+      info.innerHTML = visible !== dataset.rows.length ? t("table.filtered", params) : t("table.loaded", params);
+    }
+
+    function updateButtonStates() {
+      const hasData = dataset.rows.length > 0;
+      const isRunning = job.status === "running";
+      
+      const keyProvided = (config.provider === "google" && config.googleApiKey.trim() !== "") ||
+                          (config.provider === "yandex" && config.yandexApiKey.trim() !== "");
+      
+      document.getElementById("btn-start-job").disabled = !hasData || isRunning || !keyProvided;
+      document.getElementById("btn-fix-mismatches").disabled = !hasData || isRunning || !keyProvided;
+      
+      document.getElementById("btn-stop-job").disabled = !isRunning;
+      
+      document.getElementById("btn-download-all").disabled = !hasData || isRunning;
+      document.getElementById("btn-clear-dataset").disabled = !hasData || isRunning;
+      document.getElementById("btn-toggle-map").disabled = !hasData;
+      
+      document.getElementById("excel-file-input").disabled = isRunning;
+      const uploadLabel = document.getElementById("upload-label");
+      if (isRunning) {
+        uploadLabel.classList.add("disabled");
+      } else {
+        uploadLabel.classList.remove("disabled");
+      }
+      
+      document.getElementById("filter-id").disabled = !hasData || isRunning;
+      document.getElementById("filter-name").disabled = !hasData || isRunning;
+      document.getElementById("filter-il").disabled = !hasData || isRunning;
+      document.getElementById("filter-ilce").disabled = !hasData || isRunning;
+      document.getElementById("btn-clear-filters").disabled = !hasData || isRunning;
+    }
+
+    // =====================================================================
+    // Batch job runner
+    // Processes the selected rows (or all eligible rows) one at a time.
+    // =====================================================================
+
+    async function startBatchJob(operation) {
+      if (job.status === "running") return;
+      
+      const keyProvided = (config.provider === "google" && config.googleApiKey.trim() !== "") ||
+                          (config.provider === "yandex" && config.yandexApiKey.trim() !== "");
+      if (!keyProvided) {
+        document.getElementById("api-modal").style.display = "flex";
+        return;
+      }
+      
+      job.status = "running";
+      job.current = 0;
+      job.total = 0;
+      job.message = t("job.starting");
+      updateJobUI();
+      updateButtonStates();
+      
+      activeCancelToken = { cancelled: false };
+      
+      const selectedArr = Array.from(selectedRows);
+      const useSelection = selectedArr.length > 0;
+      const rowsToProcess = [];
+      
+      for (let i = 0; i < dataset.rows.length; i++) {
+        if (useSelection) {
+          if (selectedRows.has(i)) {
+            rowsToProcess.push({ index: i, row: dataset.rows[i] });
+          }
+        } else {
+          if (operation === "reverse" && config.onlyMissingAddress) {
+            const addr = dataset.rows[i].address;
+            if (!addr || String(addr).trim() === "") {
+              rowsToProcess.push({ index: i, row: dataset.rows[i] });
+            }
+          } else if (operation === "fix_mismatches") {
+            if (dataset.rows[i].status === "mismatch") {
+              rowsToProcess.push({ index: i, row: dataset.rows[i] });
+            }
+          } else {
+            rowsToProcess.push({ index: i, row: dataset.rows[i] });
+          }
+        }
+      }
+      
+      job.total = rowsToProcess.length;
+      if (job.total === 0) {
+        job.status = "idle";
+        job.message = t("job.noRows");
+        updateJobUI();
+        updateButtonStates();
+        showToast(t("toast.warn"), t("msg.noRows"), "warn");
+        return;
+      }
+
+      if (config.provider === "google") {
+        if (!googleMapsLoaded) {
+          try {
+            job.message = t("job.loadingSdk");
+            updateJobUI();
+            await loadGoogleMapsSDK(config.googleApiKey);
+          } catch (err) {
+            console.error(err);
+            job.status = "failed";
+            job.message = t("job.sdkFail", { err: err.message });
+            updateJobUI();
+            updateButtonStates();
+            showToast(t("toast.error"), t("msg.sdkFail"), "error");
+            return;
+          }
+        }
+      }
+
+      showToast(t("toast.info"), t("msg.started"), "info");
+
+      for (let k = 0; k < rowsToProcess.length; k++) {
+        if (activeCancelToken.cancelled) {
+          job.status = "cancelled";
+          job.message = t("job.stopped");
+          updateJobUI();
+          updateButtonStates();
+          showToast(t("toast.stopped"), t("msg.cancelled"), "warn");
+
+          if (isMapVisible) renderMap();
+          return;
+        }
+
+        const { index, row } = rowsToProcess[k];
+        job.current = k + 1;
+        job.operation = operation;
+        job.message = "";
+        updateJobUI();
+        
+        try {
+          if (operation === "geocode") {
+            await executeGeocodeRow(index, row);
+          } else if (operation === "reverse") {
+            await executeReverseGeocodeRow(index, row);
+          } else if (operation === "validate") {
+            await executeValidateRow(index, row);
+          } else if (operation === "fix_mismatches") {
+            await executeFixMismatchRow(index, row);
+          }
+        } catch (e) {
+          console.error(`Error processing row index ${index}:`, e);
+        }
+        
+        updateTableRowUI(index);
+        
+        if (k < rowsToProcess.length - 1 && config.delayMs > 0) {
+          await sleep(config.delayMs);
+        }
+      }
+      
+      job.status = "succeeded";
+      job.message = t("job.done");
+      updateJobUI();
+      updateButtonStates();
+      showToast(t("toast.success"), t("msg.done"), "success");
+      
+      if (isMapVisible) {
+        renderMap();
+      }
+    }
+
+    function updateJobUI() {
+      const strip = document.getElementById("progress-strip");
+      if (job.status === "running") {
+        strip.style.display = "flex";
+      } else {
+        setTimeout(() => {
+          if (job.status !== "running") strip.style.display = "none";
+        }, 3000);
+      }
+      
+      // While rows are being processed the label is rebuilt from the operation,
+      // so it follows a language switch mid-run.
+      const progressText = job.status === "running" && !job.message && job.operation
+        ? `${t(`job.op.${job.operation}`)}: ${job.current}/${job.total}`
+        : job.message;
+      document.getElementById("progress-text").innerText = progressText;
+      
+      const percent = job.total > 0 ? Math.round((job.current / job.total) * 100) : 0;
+      document.getElementById("progress-bar-fill").style.width = `${percent}%`;
+      document.getElementById("progress-percent").innerText = `${percent}%`;
+    }
+
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function closeApiModal() {
+      document.getElementById("api-modal").style.display = "none";
+    }
+
+    // =====================================================================
+    // Per-row operations: geocode, reverse geocode, validate, fix mismatch
+    // =====================================================================
+
+    async function executeGeocodeRow(index, row) {
+      const address = row.address;
+      
+      let result;
+      if (config.provider === "google") {
+        result = await geocodeProgressive(address, row.name, row.il, row.ilce);
+      } else {
+        result = await geocodeProgressiveYandex(address, row.il, row.ilce, config.yandexApiKey);
+      }
+
+      if (result.isDistrictConflict) {
+        dataset.rows[index].status = "district_conflict";
+        if (Number.isFinite(result.lat) && Number.isFinite(result.lng)) {
+          dataset.rows[index].latitude = result.lat;
+          dataset.rows[index].longitude = result.lng;
+        } else {
+          dataset.rows[index].latitude = "";
+          dataset.rows[index].longitude = "";
+        }
+        dataset.rows[index].note = result.err || t("note.districtConflictDefault");
+        return;
+      }
+
+      if (result.nameOnlyNotFound) {
+        dataset.rows[index].status = "name_not_found";
+        dataset.rows[index].latitude = "";
+        dataset.rows[index].longitude = "";
+        dataset.rows[index].note = result.err || t("note.nameNotFoundDefault");
+        return;
+      }
+
+      if (result.lat !== null && result.lat !== undefined) {
+        dataset.rows[index].status = "geocoded";
+        dataset.rows[index].latitude = result.lat;
+        dataset.rows[index].longitude = result.lng;
+        let note = result.formatted || "";
+        if (result.placeName) {
+          note = `Google: ${result.placeName}${note ? ` | ${note}` : ""}`;
+        }
+        if (!result.isValidLoc) {
+          note = `${note}  ${t("note.unverified")}`.trim();
+        }
+        dataset.rows[index].note = note;
+      } else {
+        dataset.rows[index].status = "geocode_error";
+        dataset.rows[index].note = result.err || t("note.noResult");
+      }
+    }
+
+    async function executeReverseGeocodeRow(index, row) {
+      const lat = parseFloat(row.latitude);
+      const lng = parseFloat(row.longitude);
+      if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        dataset.rows[index].status = "coord_error";
+        dataset.rows[index].note = t("note.invalidCoord");
+        return;
+      }
+      
+      let result;
+      if (config.provider === "google") {
+        result = await googleReverseGeocode(lat, lng);
+      } else {
+        result = await yandexReverseGeocode(lat, lng, config.yandexApiKey);
+      }
+      
+      if (result.status === "OK") {
+        dataset.rows[index].address = result.formatted_address;
+        dataset.rows[index].status = "reverse_geocoded";
+        dataset.rows[index].note = "";
+        
+        let il = "";
+        let ilce = "";
+        
+        if (config.provider === "google" && result.address_components) {
+          result.address_components.forEach(comp => {
+            if (comp.types.includes("administrative_area_level_1")) {
+              il = comp.long_name;
+            }
+            if (comp.types.includes("administrative_area_level_2")) {
+              ilce = comp.long_name;
+            }
+          });
+        } else if (config.provider === "yandex" && result.components) {
+          result.components.forEach(comp => {
+            if (comp.kind === "province") {
+              il = comp.name;
+            }
+          });
+          result.components.forEach(comp => {
+            if (comp.kind === "area" || comp.kind === "district" || comp.kind === "locality") {
+              let name = comp.name;
+              if (name && name !== il) {
+                if (!ilce || comp.kind === "area" || comp.kind === "district") {
+                  ilce = name;
+                }
+              }
+            }
+          });
+        }
+        
+        if (il) {
+          il = il.replace(/\s+ili$/i, "").replace(/\s+il[ıi]$/i, "").trim();
+          dataset.rows[index].il = il;
+        }
+        if (ilce) {
+          ilce = ilce.replace(/\s+ilçesi$/i, "").replace(/\s+ilce$/i, "").trim();
+          dataset.rows[index].ilce = ilce;
+        }
+      } else {
+        dataset.rows[index].status = "reverse_error";
+        dataset.rows[index].note = result.err || result.status;
+      }
+    }
+
+    async function executeValidateRow(index, row) {
+      const originalLat = parseFloat(row.latitude);
+      const originalLng = parseFloat(row.longitude);
+      
+      if (isNaN(originalLat) || isNaN(originalLng)) {
+        dataset.rows[index].status = "coord_missing";
+        dataset.rows[index].note = t("note.noOrigCoord");
+        return;
+      }
+      
+      let result;
+      if (config.provider === "google") {
+        result = await geocodeProgressive(row.address, row.name, row.il, row.ilce);
+      } else {
+        result = await geocodeProgressiveYandex(row.address, row.il, row.ilce, config.yandexApiKey);
+      }
+      
+      if (result.lat !== null && result.lat !== undefined) {
+        const dist = haversineDistance(originalLat, originalLng, result.lat, result.lng);
+        const thresholdKm = config.thresholdMeters / 1000;
+        
+        const meters = Math.round(dist * 1000);
+        if (dist <= thresholdKm) {
+          dataset.rows[index].status = "match";
+          dataset.rows[index].note = t("note.validated", {
+            d: meters,
+            provider: PROVIDER_NAMES[config.provider],
+            addr: result.formatted
+          });
+        } else {
+          dataset.rows[index].status = "mismatch";
+          dataset.rows[index].note = t("note.mismatch", {
+            d: meters,
+            addr: result.formatted,
+            lat: result.lat.toFixed(6),
+            lng: result.lng.toFixed(6)
+          });
+        }
+      } else {
+        dataset.rows[index].status = "validate_failed";
+        dataset.rows[index].note = t("note.validateFailed");
+      }
+    }
+
+    async function executeFixMismatchRow(index, row) {
+      if (row.status !== "mismatch") return;
+      
+      const address = row.address;
+      let result;
+      if (config.provider === "google") {
+        result = await geocodeProgressive(address, row.name, row.il, row.ilce);
+      } else {
+        result = await geocodeProgressiveYandex(address, row.il, row.ilce, config.yandexApiKey);
+      }
+      
+      if (result.lat !== null && result.lat !== undefined) {
+        dataset.rows[index].latitude = result.lat;
+        dataset.rows[index].longitude = result.lng;
+        dataset.rows[index].status = "match";
+        dataset.rows[index].note = t("note.fixed", { addr: result.formatted });
+      } else {
+        dataset.rows[index].note = t("note.fixFailed", { err: result.err || t("note.addressNotFound") });
+      }
+    }
+
+    // =====================================================================
+    // Provider clients: Google Maps JS SDK (Geocoder, Places API New), Yandex
+    // =====================================================================
+
+    function loadGoogleMapsSDK(apiKey) {
+      return new Promise((resolve, reject) => {
+        if (window.google && window.google.maps) {
+          googleMapsLoaded = true;
+          geocoder = new google.maps.Geocoder();
+          resolve();
+          return;
+        }
+        
+        const existing = document.getElementById("google-maps-sdk");
+        if (existing) existing.remove();
+
+        const script = document.createElement("script");
+        script.id = "google-maps-sdk";
+        const placesParam = config.usePlaces ? "&libraries=places" : "";
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}${placesParam}&language=tr`;
+        script.async = true;
+        script.defer = true;
+        script.onload = () => {
+          if (window.google && window.google.maps) {
+            googleMapsLoaded = true;
+            geocoder = new google.maps.Geocoder();
+            resolve();
+          } else {
+            reject(new Error(t("err.sdkObject")));
+          }
+        };
+        script.onerror = () => {
+          reject(new Error(t("err.sdkLoad")));
+        };
+        document.head.appendChild(script);
+      });
+    }
+
+    function googleGeocode(address, il) {
+      return new Promise((resolve) => {
+        if (!geocoder) {
+          resolve({ status: "ERROR", err: t("err.sdkNotLoaded") });
+          return;
+        }
+
+        const req = { address: address };
+        const componentRestrictions = { country: "TR" };
+        if (il) {
+          componentRestrictions.administrativeArea = il;
+        }
+        req.componentRestrictions = componentRestrictions;
+        
+        geocoder.geocode(req, (results, status) => {
+          if (status === google.maps.GeocoderStatus.OK && results && results.length > 0) {
+            const loc = results[0].geometry.location;
+            resolve({
+              status: "OK",
+              lat: loc.lat(),
+              lng: loc.lng(),
+              formatted_address: results[0].formatted_address,
+              types: results[0].types || [],
+              partial_match: Boolean(results[0].partial_match),
+              location_type: results[0].geometry?.location_type || ""
+            });
+          } else {
+            resolve({ status: status, err: t("err.geocoder", { s: status }) });
+          }
+        });
+      });
+    }
+
+    async function getGooglePlaceClass() {
+      if (googlePlaceClass) return googlePlaceClass;
+      if (!window.google?.maps?.importLibrary) {
+        throw new Error(t("err.importLibrary"));
+      }
+
+      const placesLibrary = await google.maps.importLibrary("places");
+      if (!placesLibrary?.Place || typeof placesLibrary.Place.searchByText !== "function") {
+        throw new Error(t("err.placesLoad"));
+      }
+
+      googlePlaceClass = placesLibrary.Place;
+      return googlePlaceClass;
+    }
+
+    async function searchPlacesNew(query, locationBias = null) {
+      if (!config.usePlaces) {
+        return { status: "DISABLED", apiResponded: false, candidates: [], err: t("err.placesOff") };
+      }
+      try {
+        const Place = await getGooglePlaceClass();
+        const request = {
+          textQuery: query,
+          fields: [
+            "id", "displayName", "formattedAddress", "location",
+            "businessStatus", "types", "googleMapsURI"
+          ],
+          language: "tr-TR",
+          region: "tr",
+          maxResultCount: 10
+        };
+
+        if (locationBias) {
+          request.locationBias = locationBias;
+        }
+
+        const response = await Place.searchByText(request);
+        const places = response?.places || [];
+        const candidates = places
+          .filter(place => place.location)
+          .map(place => ({
+            lat: typeof place.location.lat === "function" ? place.location.lat() : place.location.lat,
+            lng: typeof place.location.lng === "function" ? place.location.lng() : place.location.lng,
+            formatted_address: place.formattedAddress || "",
+            name: place.displayName || "",
+            place_id: place.id || "",
+            types: place.types || [],
+            business_status: place.businessStatus || "",
+            google_maps_uri: place.googleMapsURI || "",
+            source: "Places API (New)"
+          }))
+          .filter(candidate => Number.isFinite(candidate.lat) && Number.isFinite(candidate.lng));
+
+        if (candidates.length === 0) {
+          return {
+            status: "ZERO_RESULTS",
+            apiResponded: true,
+            candidates: [],
+            err: t("err.placesZero")
+          };
+        }
+
+        return { status: "OK", apiResponded: true, candidates };
+      } catch (err) {
+        return {
+          status: "ERROR",
+          apiResponded: false,
+          candidates: [],
+          err: t("err.places", { m: err.message })
+        };
+      }
+    }
+
+    function googleReverseGeocode(lat, lng) {
+      return new Promise((resolve) => {
+        if (!geocoder) {
+          resolve({ status: "ERROR", err: t("err.sdkNotLoaded") });
+          return;
+        }
+        geocoder.geocode({ location: { lat: lat, lng: lng } }, (results, status) => {
+          if (status === google.maps.GeocoderStatus.OK && results && results.length > 0) {
+            resolve({ 
+              status: "OK", 
+              formatted_address: results[0].formatted_address,
+              address_components: results[0].address_components 
+            });
+          } else {
+            resolve({ status: status, err: t("err.reverse", { s: status }) });
+          }
+        });
+      });
+    }
+
+    async function yandexGeocode(address, apiKey) {
+      const url = `https://geocode-maps.yandex.ru/1.x/?apikey=${apiKey}&geocode=${encodeURIComponent(address)}&format=json&results=1&lang=tr_TR`;
+      try {
+        const res = await fetch(url);
+        if (res.status === 401 || res.status === 403) {
+          return { status: "ERROR", err: t("err.keyInvalid") };
+        }
+        const data = await res.json();
+        const members = data?.response?.GeoObjectCollection?.featureMember;
+        if (!members || members.length === 0) {
+          return { status: "ZERO_RESULTS", err: t("err.yandexZero") };
+        }
+        const geoObj = members[0].GeoObject;
+        const pos = geoObj?.Point?.pos || "";
+        const parts = pos.split(" ");
+        if (parts.length !== 2) {
+          return { status: "ERROR", err: t("err.yandexCoord") };
+        }
+        const lng = parseFloat(parts[0]);
+        const lat = parseFloat(parts[1]);
+        const formatted = geoObj?.metaDataProperty?.GeocoderMetaData?.text || "";
+        return { status: "OK", lat: lat, lng: lng, formatted_address: formatted };
+      } catch (err) {
+        return { status: "ERROR", err: t("err.request", { m: err.message }) };
+      }
+    }
+
+    async function yandexReverseGeocode(lat, lng, apiKey) {
+      const url = `https://geocode-maps.yandex.ru/1.x/?apikey=${apiKey}&geocode=${lng},${lat}&format=json&results=1&lang=tr_TR`;
+      try {
+        const res = await fetch(url);
+        if (res.status === 401 || res.status === 403) {
+          return { status: "ERROR", err: t("err.keyInvalid") };
+        }
+        const data = await res.json();
+        const members = data?.response?.GeoObjectCollection?.featureMember;
+        if (!members || members.length === 0) {
+          return { status: "ZERO_RESULTS", err: t("err.yandexZero") };
+        }
+        const geoObj = members[0].GeoObject;
+        const formatted = geoObj?.metaDataProperty?.GeocoderMetaData?.text || "";
+        const components = geoObj?.metaDataProperty?.GeocoderMetaData?.Address?.Components || [];
+        return { status: "OK", formatted_address: formatted, components: components };
+      } catch (err) {
+        return { status: "ERROR", err: t("err.request", { m: err.message }) };
+      }
+    }
+
+    function isAdministrativeOnlyResult(types) {
+      if (!Array.isArray(types) || types.length === 0) return false;
+      const specificTypes = new Set([
+        "street_address", "premise", "subpremise", "route", "intersection",
+        "establishment", "point_of_interest", "store", "restaurant", "food"
+      ]);
+      if (types.some(type => specificTypes.has(type))) return false;
+      return types.some(type => type === "political" || type === "locality" || type.startsWith("administrative_area"));
+    }
+
+    function isUsableGoogleGeocodeResult(result) {
+      return result && result.status === "OK" && !isAdministrativeOnlyResult(result.types);
+    }
+
+    function escapeRegExp(text) {
+      return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    function extractSlashDistrict(address, il) {
+      if (!address || !il) return "";
+      const ilPattern = escapeRegExp(il);
+      const re = new RegExp(`(?:^|[,;])\\s*([^,;/]{2,60}?)\\s*\\/\\s*${ilPattern}(?:\\b|$)`, "i");
+      const match = String(address).match(re);
+      if (!match) return "";
+      const district = match[1].replace(/\b\d{5}\b/g, "").trim();
+      if (!district || /\d/.test(district) || /\b(?:no|numara|sok|sokak|cad|cadde|cd)\b/i.test(district)) {
+        return "";
+      }
+      return district;
+    }
+
+    function isGenericDistrictLabel(district, il) {
+      const districtFolded = foldText(district).trim();
+      const ilFolded = foldText(il).trim();
+      return districtFolded === "merkez" || districtFolded === `${ilFolded} merkez`;
+    }
+
+    function normalizeBusinessNameForMatch(name) {
+      return foldText(name || "")
+        .replace(/[^a-z0-9\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function businessNameMatchScore(expectedName, candidateName) {
+      const expected = normalizeBusinessNameForMatch(expectedName);
+      const candidate = normalizeBusinessNameForMatch(candidateName);
+      if (!expected || !candidate) return 0;
+
+      const expectedCompact = expected.replace(/\s+/g, "");
+      const candidateCompact = candidate.replace(/\s+/g, "");
+      if (expectedCompact === candidateCompact) return 100;
+
+      if (expectedCompact.length >= 5 && candidateCompact.startsWith(expectedCompact)) {
+        return 92;
+      }
+      if (candidateCompact.length >= 5 && expectedCompact.startsWith(candidateCompact)) {
+        return 88;
+      }
+      if (expectedCompact.length >= 5 && candidateCompact.includes(expectedCompact)) {
+        return 72;
+      }
+
+      const expectedTokens = expected.split(" ").filter(token => token.length >= 2);
+      const candidateTokens = candidate.split(" ").filter(token => token.length >= 2);
+      if (expectedTokens.length === 0 || candidateTokens.length === 0) return 0;
+
+      const firstExpected = expectedTokens[0];
+      const firstTokenMatches = candidateTokens.some((token, index) => index === 0 && (
+        token === firstExpected ||
+        (firstExpected.length >= 4 && token.startsWith(firstExpected)) ||
+        (token.length >= 4 && firstExpected.startsWith(token))
+      ));
+      if (!firstTokenMatches) return 0;
+
+      let matchedTokens = 0;
+      for (const expectedToken of expectedTokens) {
+        const matched = candidateTokens.some(candidateToken =>
+          candidateToken === expectedToken ||
+          (expectedToken.length >= 4 && candidateToken.startsWith(expectedToken)) ||
+          (candidateToken.length >= 4 && expectedToken.startsWith(candidateToken))
+        );
+        if (matched) matchedTokens++;
+      }
+
+      const coverage = matchedTokens / expectedTokens.length;
+      if (coverage >= 1) return 90;
+      if (coverage >= 0.75) return 85;
+      return 0;
+    }
+
+    function isBusinessNameCompatible(expectedName, candidateName) {
+      return businessNameMatchScore(expectedName, candidateName) >= 85;
+    }
+
+    function selectPlaceCandidate(response, il, ilce, originalAddress, expectedName = "") {
+      const candidates = response?.candidates || [];
+      const expectedNames = (Array.isArray(expectedName) ? expectedName : [expectedName]).filter(Boolean);
+      let match = null;
+      let districtConflict = null;
+
+      for (const candidate of candidates) {
+        if (isAdministrativeOnlyResult(candidate.types)) continue;
+        const nameScore = expectedNames.length > 0
+          ? Math.max(...expectedNames.map(name => businessNameMatchScore(name, candidate.name)))
+          : 100;
+        if (nameScore < 85) continue;
+        const ilOk = il ? foldText(candidate.formatted_address).includes(foldText(il)) : true;
+        const noMahalleConflict = !mahalleConflict(candidate.formatted_address, originalAddress);
+        if (!ilOk || !noMahalleConflict) continue;
+
+        const scoredCandidate = { ...candidate, nameScore };
+        const ilceOk = ilce ? verifyIlce(candidate.formatted_address, ilce) : true;
+        if (ilceOk) {
+          if (!match || scoredCandidate.nameScore > match.nameScore) {
+            match = scoredCandidate;
+          }
+          continue;
+        }
+
+        if (!districtConflict || scoredCandidate.nameScore > districtConflict.nameScore) {
+          districtConflict = scoredCandidate;
+        }
+      }
+
+      return { match, districtConflict };
+    }
+
+    function districtConflictResult(candidate, explicitDistrict, ilce) {
+      const inputDetail = explicitDistrict
+        ? t("err.districtExplicit", { d: explicitDistrict, ilce })
+        : t("err.districtResult", { ilce });
+      return {
+        lat: candidate.lat,
+        lng: candidate.lng,
+        formatted: candidate.formatted_address,
+        placeName: candidate.name || "",
+        placeId: candidate.place_id || "",
+        googleMapsURI: candidate.google_maps_uri || "",
+        isValidLoc: false,
+        isDistrictConflict: true,
+        err: t("err.districtConflict", {
+          detail: inputDetail,
+          name: candidate.name || t("err.unnamedPlace"),
+          addr: candidate.formatted_address
+        })
+      };
+    }
+
+    async function getGoogleLocationBias(il, ilce) {
+      const parts = [ilce, il, "Türkiye"].filter(Boolean);
+      if (parts.length === 1) return null;
+
+      const key = foldText(parts.join("|"));
+      if (googleLocationBiasCache.has(key)) {
+        return googleLocationBiasCache.get(key);
+      }
+
+      const regionResult = await googleGeocode(parts.join(", "), il);
+      const bias = regionResult.status === "OK"
+        ? { lat: regionResult.lat, lng: regionResult.lng }
+        : null;
+      googleLocationBiasCache.set(key, bias);
+      return bias;
+    }
+
+    // =====================================================================
+    // Progressive geocoding
+    // Tries the most specific query first (business name via Places, full
+    // address), then falls back to progressively cleaned-up addresses
+    // (without building, door number, down to neighbourhood/street) until a
+    // result passes the province/district/neighbourhood checks.
+    // =====================================================================
+
+    async function geocodeProgressive(address, name, il, ilce) {
+      const normAddress = normalizeAddressFormat(address || "");
+      const nameClean = cleanCompanyName(name || "");
+      const ilNorm = normVal(il);
+      const ilceNorm = normVal(ilce);
+      const explicitDistrict = extractSlashDistrict(normAddress, ilNorm);
+      const inputDistrictConflict = Boolean(
+        explicitDistrict &&
+        ilceNorm &&
+        !isGenericDistrictLabel(explicitDistrict, ilNorm) &&
+        foldText(explicitDistrict) !== foldText(ilceNorm)
+      );
+      
+      let lat = null, lng = null, formatted = null, err = "";
+      
+      if (nameClean && config.usePlaces) {
+        const locationBias = await getGoogleLocationBias(ilNorm, ilceNorm);
+        const queries = [];
+        const rawName = normVal(name);
+        const nameVariants = Array.from(new Set([rawName, nameClean].filter(Boolean)));
+
+        if (normAddress) {
+          const bldgClean = cleanAddressBuilding(normAddress);
+          const addressContext = explicitDistrict
+            ? augmentAddress(bldgClean, ilNorm, "")
+            : augmentAddress(bldgClean, ilNorm, ilceNorm);
+          for (const nameVariant of nameVariants) {
+            if (inputDistrictConflict) {
+              queries.push([nameVariant, ilceNorm, ilNorm, "Türkiye"].filter(Boolean).join(", "));
+            }
+            queries.push(`${nameVariant}, ${addressContext}`);
+          }
+        } else {
+          for (const nameVariant of nameVariants) {
+            queries.push([nameVariant, ilceNorm, ilNorm, "Türkiye"].filter(Boolean).join(", "));
+            if (ilceNorm) {
+              queries.push([nameVariant, ilNorm, "Türkiye"].filter(Boolean).join(", "));
+            }
+          }
+        }
+
+        let lastPlacesError = "";
+        let bestPlaceCandidate = null;
+        let bestPlaceHasDistrictConflict = false;
+        let placesApiResponded = false;
+        for (const nameQuery of Array.from(new Set(queries))) {
+          const response = await searchPlacesNew(nameQuery, locationBias);
+          if (response.apiResponded) placesApiResponded = true;
+          if (response.status !== "OK") {
+            lastPlacesError = response.err || response.status;
+            continue;
+          }
+
+          const selected = selectPlaceCandidate(response, ilNorm, ilceNorm, normAddress, [rawName, nameClean]);
+          for (const option of [
+            { candidate: selected.match, hasDistrictConflict: false },
+            { candidate: selected.districtConflict, hasDistrictConflict: true }
+          ]) {
+            if (!option.candidate) continue;
+            const isBetter = !bestPlaceCandidate ||
+              option.candidate.nameScore > bestPlaceCandidate.nameScore ||
+              (option.candidate.nameScore === bestPlaceCandidate.nameScore && bestPlaceHasDistrictConflict && !option.hasDistrictConflict);
+            if (isBetter) {
+              bestPlaceCandidate = option.candidate;
+              bestPlaceHasDistrictConflict = option.hasDistrictConflict;
+            }
+          }
+        }
+
+        if (bestPlaceCandidate) {
+          if (inputDistrictConflict || bestPlaceHasDistrictConflict) {
+            return districtConflictResult(bestPlaceCandidate, explicitDistrict, ilceNorm);
+          }
+          return {
+            lat: bestPlaceCandidate.lat,
+            lng: bestPlaceCandidate.lng,
+            formatted: bestPlaceCandidate.formatted_address,
+            placeName: bestPlaceCandidate.name || "",
+            placeId: bestPlaceCandidate.place_id || "",
+            googleMapsURI: bestPlaceCandidate.google_maps_uri || "",
+            isValidLoc: true,
+            err: ""
+          };
+        }
+
+        if (!normAddress) {
+          if (!placesApiResponded) {
+            return {
+              lat: null,
+              lng: null,
+              formatted: null,
+              isValidLoc: false,
+              err: lastPlacesError || t("err.placesIncomplete")
+            };
+          }
+          return {
+            lat: null,
+            lng: null,
+            formatted: null,
+            isValidLoc: false,
+            nameOnlyNotFound: true,
+            err: lastPlacesError || t("err.nameNotFoundRegion", {
+              name: nameClean,
+              region: [ilceNorm, ilNorm].filter(Boolean).join("/")
+            })
+          };
+        }
+      }
+
+      if (!normAddress) {
+        if (nameClean) {
+          return { lat: null, lng: null, formatted: null, isValidLoc: false, err: t("err.placesOffNoAddr") };
+        }
+        return { lat: null, lng: null, formatted: null, isValidLoc: false, err: t("err.emptyRow") };
+      }
+      
+      const fullAddr = explicitDistrict
+        ? augmentAddress(normAddress, ilNorm, "")
+        : augmentAddress(normAddress, ilNorm, ilceNorm);
+      const res1 = await googleGeocode(fullAddr, ilNorm);
+      if (isUsableGoogleGeocodeResult(res1)) {
+        lat = res1.lat;
+        lng = res1.lng;
+        formatted = res1.formatted_address;
+        const isValid = isValidLocation(formatted, ilceNorm, normAddress);
+        if (isValid || inputDistrictConflict) {
+          if (inputDistrictConflict) {
+            return districtConflictResult({ lat, lng, formatted_address: formatted }, explicitDistrict, ilceNorm);
+          }
+          return { lat, lng, formatted, isValidLoc: true, err: "" };
+        }
+      } else if (res1.status === "OK") {
+        err = t("err.approxOnly");
+      } else {
+        err = res1.err || res1.status;
+      }
+      
+      if (normAddress && config.usePlaces) {
+        const smartAddr = cleanAddressBuilding(normAddress);
+        const smartQuery = explicitDistrict
+          ? augmentAddress(smartAddr, ilNorm, "")
+          : augmentAddress(smartAddr, ilNorm, ilceNorm);
+        const res15 = await searchPlacesNew(smartQuery, await getGoogleLocationBias(ilNorm, ilceNorm));
+        if (res15.status === "OK") {
+          const selected = selectPlaceCandidate(res15, ilNorm, ilceNorm, normAddress);
+          if (selected.match) {
+            return { lat: selected.match.lat, lng: selected.match.lng, formatted: selected.match.formatted_address, isValidLoc: true, err: "" };
+          }
+        }
+      }
+      
+      if (normAddress) {
+        const bldgAddr = cleanAddressBuilding(normAddress);
+        if (bldgAddr && bldgAddr !== normAddress) {
+          const augmentedBldg = explicitDistrict
+            ? augmentAddress(bldgAddr, ilNorm, "")
+            : augmentAddress(bldgAddr, ilNorm, ilceNorm);
+          const res2 = await googleGeocode(augmentedBldg, ilNorm);
+          if (isUsableGoogleGeocodeResult(res2)) {
+            const isValid = isValidLocation(res2.formatted_address, ilceNorm, normAddress);
+            if (isValid || inputDistrictConflict) {
+              if (inputDistrictConflict) {
+                return districtConflictResult({ lat: res2.lat, lng: res2.lng, formatted_address: res2.formatted_address }, explicitDistrict, ilceNorm);
+              }
+              return { lat: res2.lat, lng: res2.lng, formatted: res2.formatted_address, isValidLoc: true, err: "" };
+            }
+          }
+        }
+      }
+      
+      if (normAddress) {
+        const stAddr = cleanAddressStreet(normAddress);
+        if (stAddr && stAddr !== normAddress) {
+          const augmentedSt = explicitDistrict
+            ? augmentAddress(stAddr, ilNorm, "")
+            : augmentAddress(stAddr, ilNorm, ilceNorm);
+          const res3 = await googleGeocode(augmentedSt, ilNorm);
+          if (isUsableGoogleGeocodeResult(res3)) {
+            const isValid = isValidLocation(res3.formatted_address, ilceNorm, normAddress);
+            if (isValid || inputDistrictConflict) {
+              if (inputDistrictConflict) {
+                return districtConflictResult({ lat: res3.lat, lng: res3.lng, formatted_address: res3.formatted_address }, explicitDistrict, ilceNorm);
+              }
+              return { lat: res3.lat, lng: res3.lng, formatted: res3.formatted_address, isValidLoc: true, err: "" };
+            }
+          }
+        }
+      }
+      
+      if (normAddress) {
+        const coreAddr = cleanAddressForFallbackCore(normAddress);
+        if (coreAddr) {
+          const augmentedCore = explicitDistrict
+            ? augmentAddress(coreAddr, ilNorm, "")
+            : augmentAddress(coreAddr, ilNorm, ilceNorm);
+          const res4 = await googleGeocode(augmentedCore, ilNorm);
+          if (isUsableGoogleGeocodeResult(res4)) {
+            const isValid = isValidLocation(res4.formatted_address, ilceNorm, normAddress);
+            if (isValid || inputDistrictConflict) {
+              if (inputDistrictConflict) {
+                return districtConflictResult({ lat: res4.lat, lng: res4.lng, formatted_address: res4.formatted_address }, explicitDistrict, ilceNorm);
+              }
+              return { lat: res4.lat, lng: res4.lng, formatted: res4.formatted_address, isValidLoc: true, err: "" };
+            }
+          }
+        }
+      }
+      
+      return { lat: lat, lng: lng, formatted: formatted, isValidLoc: false, err: err };
+    }
+
+    async function geocodeProgressiveYandex(address, il, ilce, apiKey) {
+      const normAddress = normalizeAddressFormat(address || "");
+      const ilNorm = normVal(il);
+      const ilceNorm = normVal(ilce);
+      
+      let lat = null, lng = null, formatted = null, err = "";
+      
+      const fullAddr = augmentAddress(normAddress, ilNorm, ilceNorm);
+      const res1 = await yandexGeocode(fullAddr, apiKey);
+      if (res1.status === "OK") {
+        return { lat: res1.lat, lng: res1.lng, formatted: res1.formatted_address, isValidLoc: true, err: "" };
+      } else {
+        err = res1.err || res1.status;
+      }
+      
+      if (normAddress) {
+        const bldgAddr = cleanAddressBuilding(normAddress);
+        if (bldgAddr && bldgAddr !== normAddress) {
+          const augmentedBldg = augmentAddress(bldgAddr, ilNorm, ilceNorm);
+          const res2 = await yandexGeocode(augmentedBldg, apiKey);
+          if (res2.status === "OK") {
+            return { lat: res2.lat, lng: res2.lng, formatted: res2.formatted_address, isValidLoc: true, err: "" };
+          }
+        }
+      }
+      
+      if (normAddress) {
+        const stAddr = cleanAddressStreet(normAddress);
+        if (stAddr && stAddr !== normAddress) {
+          const augmentedSt = augmentAddress(stAddr, ilNorm, ilceNorm);
+          const res3 = await yandexGeocode(augmentedSt, apiKey);
+          if (res3.status === "OK") {
+            return { lat: res3.lat, lng: res3.lng, formatted: res3.formatted_address, isValidLoc: true, err: "" };
+          }
+        }
+      }
+      
+      if (normAddress) {
+        const coreAddr = cleanAddressForFallbackCore(normAddress);
+        if (coreAddr) {
+          const augmentedCore = augmentAddress(coreAddr, ilNorm, ilceNorm);
+          const res4 = await yandexGeocode(augmentedCore, apiKey);
+          if (res4.status === "OK") {
+            return { lat: res4.lat, lng: res4.lng, formatted: res4.formatted_address, isValidLoc: true, err: "" };
+          }
+        }
+      }
+      
+      return { lat: null, lng: null, formatted: null, isValidLoc: false, err: err };
+    }
+
+    // =====================================================================
+    // Turkish address normalization and matching helpers
+    // =====================================================================
+
+    const DOOR_NUMBER_RE =/(?:cad|cd|sok|sk|bul|blv|mah|mh|kap[ıi])\s*(?:no?|numara)[:.\s\-]*\d+|\b(?:no|n|numara)[:.\s\-]+\d+|\bno\d+|\d+\s*[/\-]\s*[A-Za-z\d]+|\b\d{1,4}\s+[A-Za-z]\b|\s[-–]\s*\d+[A-Za-z]*\s*$/i;
+
+    function hasDoorNumber(address) {
+      if (!address) return false;
+      return DOOR_NUMBER_RE.test(String(address));
+    }
+
+    function normVal(val) {
+      if (val === null || val === undefined) return "";
+      const s = String(val).trim();
+      return s.toLowerCase() === "nan" || s.toLowerCase() === "none" ? "" : s;
+    }
+
+    function foldText(s) {
+      if (!s) return "";
+      return String(s)
+        .replace(/İ/g, "i")
+        .replace(/I/g, "i")
+        .replace(/ı/g, "i")
+        .replace(/Ç/g, "c").replace(/ç/g, "c")
+        .replace(/Ğ/g, "g").replace(/ğ/g, "g")
+        .replace(/Ö/g, "o").replace(/ö/g, "o")
+        .replace(/Ş/g, "s").replace(/ş/g, "s")
+        .replace(/Ü/g, "u").replace(/ü/g, "u")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+    }
+
+    const PAREN_STREET_TYPES = [
+      { pat: /\(\s*(?:caddesi|cadde|cad|cd)\s*\)/ig, repl: "Caddesi" },
+      { pat: /\(\s*(?:bulvar[ıi]|bulvar|bul|blv)\s*\)/ig, repl: "Bulvarı" },
+      { pat: /\(\s*(?:sokağ[ıi]|sokagi|sokak|sok|sk)\s*\)/ig, repl: "Sokak" }
+    ];
+
+    function normalizeAddressFormat(address) {
+      if (!address) return "";
+      let text = String(address);
+      for (const { pat, repl } of PAREN_STREET_TYPES) {
+        text = text.replace(pat, repl);
+      }
+      text = text.replace(/\s*[-–]\s*(\d+[A-Za-z]*)\s*$/g, " No: $1");
+      return text.replace(/\s+/g, " ").trim();
+    }
+
+    function augmentAddress(address, il, ilce) {
+      let out = address;
+      let folded = foldText(out);
+      if (ilce && !folded.includes(foldText(ilce))) {
+        out = `${out}, ${ilce}`;
+        folded = foldText(out);
+      }
+      if (il && !folded.includes(foldText(il))) {
+        out = `${out}, ${il}`;
+        folded = foldText(out);
+      }
+      if (!folded.includes("turkiye") && !folded.includes("turkey")) {
+        out = `${out}, Türkiye`;
+      }
+      return out;
+    }
+
+    const GENERIC_ILCE = new Set(["merkez", "merkez ilce", "merkez ilçe", "merkezilce"]);
+
+    function verifyIlce(formattedAddress, targetIlce) {
+      if (!formattedAddress || !targetIlce) return true;
+      if (GENERIC_ILCE.has(foldText(targetIlce).trim())) return true;
+      return foldText(formattedAddress).includes(foldText(targetIlce));
+    }
+
+    function extractMahalle(address) {
+      if (!address) return "";
+      const regex = /([A-Za-zÇĞİÖŞÜçğıöşü0-9]+(?:[\s.][A-Za-zÇĞİÖŞÜçğıöşü0-9]+)*)\s*(?:MAH\.?|MAHALLESİ|MAHALLESI|MH\.?|MHL\.?)\b/i;
+      const m = String(address).match(regex);
+      if (m) {
+        const parts = m[1].split(/\s+/);
+        const ignoreWords = new Set(["SOK", "SOKAK", "CAD", "CADDESI", "CADDESİ", "NO", "NUMARA", "BUL", "BULVAR", "BULVARI"]);
+        const words = [];
+        for (let i = parts.length - 1; i >= 0; i--) {
+          const wClean = parts[i].replace(/[.]/g, "").toUpperCase();
+          if (ignoreWords.has(wClean)) {
+            break;
+          }
+          words.unshift(parts[i]);
+        }
+        if (words.length > 0) {
+          return words.slice(-2).join(" ");
+        }
+      }
+      return "";
+    }
+
+    function verifyMahalle(formattedAddress, address) {
+      const want = extractMahalle(address);
+      if (!want || want.length < 3) return true;
+      const w = foldText(want).replace(/\s+/g, "");
+      if (!w) return true;
+      const fmt = foldText(formattedAddress).replace(/\s+/g, "");
+      const variations = [w + ",", w + "mh", w + "mah"];
+      return variations.some(v => fmt.includes(v));
+    }
+
+    function mahalleConflict(formattedAddress, originalAddress) {
+      const want = extractMahalle(originalAddress);
+      if (!want || want.length < 3 || !formattedAddress) return false;
+      const w = foldText(want).replace(/\s+/g, "");
+      if (!w) return false;
+      const tokens = formattedAddress.split(",");
+      for (let i = 0; i < tokens.length; i++) {
+        const t = foldText(tokens[i].trim()).replace(/\s+/g, "");
+        if (t.length >= 3 && (t.includes(w) || w.includes(t))) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    function isValidLocation(formatted, ilce, originalAddress) {
+      if (!formatted) return false;
+      const ilceOk = ilce ? verifyIlce(formatted, ilce) : true;
+      const mahalleOk = verifyMahalle(formatted, originalAddress);
+      return ilceOk && mahalleOk;
+    }
+
+    function cleanCompanyName(name) {
+      if (!name) return "";
+      let text = String(name);
+      text = text.replace(/\b\d{7,}\b/g, "");
+      text = text.replace(/\b(ltd|şti|a\.?ş|san|tic|ve|gıda|inş|inşaat|turizm|otomotiv|pazarlama|makine)\b\.?/ig, "");
+      return text.replace(/\s+/g, " ").replace(/^[\s,.-]+|[\s,.-]+$/g, "").trim();
+    }
+
+    function cleanAddressBuilding(address) {
+      let text = String(address);
+      text = text.replace(/(APT|APARTMANI|BLOK)\.?(NO|NUMARA|KAPI)/ig, "$1 $2");
+      text = text.replace(/\b\d{5}\b/g, "");
+      text = text.replace(/\b(?:TR|Türkiye|Turkey)\b/ig, "");
+      text = text.replace(/\b[A-Za-zÇĞİÖŞÜçğıöşü0-9]+\s*(?:APT|APARTMANI|BLOK|SİTESİ|SITESI)\.?\b/ig, "");
+      text = text.replace(/[\/\\-](?=\s|$)/g, " ");
+      return text.replace(/\s+/g, " ").replace(/ ,/g, ",").trim();
+    }
+
+    function cleanAddressStreet(address) {
+      let text = cleanAddressBuilding(address);
+      text = text.replace(/\b(?:NO|NUMARA|KAPI|KAT|DAİRE|DAIRE|İÇ KAPI|IC KAPI)[:.\s\-]*\d+[A-Z0-9/.\-]*/ig, "");
+      return text.replace(/\s+/g, " ").replace(/ ,/g, ",").trim();
+    }
+
+    function cleanAddressForFallbackCore(address) {
+      const text = String(address);
+      const m = text.match(/([A-Za-zÇĞİÖŞÜçğıöşü0-9]+(?:[\s.][A-Za-zÇĞİÖŞÜçğıöşü0-9]+)*)\s*(?:MAH\.?|MAHALLESİ|MAHALLESI|MH\.?|MHL\.?)\b/i);
+      if (m) return m[0].trim();
+      
+      const s = text.match(/([A-Za-zÇĞİÖŞÜçğıöşü0-9]+(?:[\s.][A-Za-zÇĞİÖŞÜçğıöşü0-9]+)*)\s*(?:SOK\.?|SOKAK|CAD\.?|CADDESİ|CADDESI|BUL\.?|BULVAR|BULVARI)\b/i);
+      if (s) return s[0].trim();
+      
+      return "";
+    }
+
+    function haversineDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    }
+
+    // =====================================================================
+    // Map (Leaflet)
+    // Base layers come from openly usable tile services. Google tiles are
+    // intentionally not used: loading them outside the official Maps SDK
+    // violates the Google Maps Platform terms.
+    // =====================================================================
+
+    const ESRI_ATTRIBUTION = 'Tiles &copy; <a href="https://www.esri.com">Esri</a> &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community';
+
+    const MAP_LAYERS = {
+      "osm": {
+        layers: [{
+          url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+          opts: {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          }
+        }]
+      },
+      "esri-satellite": {
+        layers: [{
+          url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+          opts: { maxZoom: 19, attribution: ESRI_ATTRIBUTION }
+        }]
+      },
+      "esri-hybrid": {
+        layers: [
+          {
+            url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            opts: { maxZoom: 19, attribution: ESRI_ATTRIBUTION }
+          },
+          {
+            url: "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+            opts: { maxZoom: 19 }
+          },
+          {
+            url: "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}",
+            opts: { maxZoom: 19 }
+          }
+        ]
+      }
+    };
+
+    // OpenStreetMap blocks tile requests without a Referer header, which is
+    // the case when index.html is opened directly from disk (file://).
+    // Esri tiles work without one, so use them as the default there.
+    const DEFAULT_MAP_LAYER = location.protocol === "file:" ? "esri-hybrid" : "osm";
+
+    function buildTileLayer(layerKey) {
+      const cfg = MAP_LAYERS[layerKey] || MAP_LAYERS.osm;
+      return L.layerGroup(cfg.layers.map(l => L.tileLayer(l.url, l.opts)));
+    }
+
+    function changeMapLayer(layerKey) {
+      if (!mapInstance || !activeTileLayer) return;
+      if (!MAP_LAYERS[layerKey]) return;
+
+      mapInstance.removeLayer(activeTileLayer);
+      activeTileLayer = buildTileLayer(layerKey).addTo(mapInstance);
+    }
+
+    function toggleMapPanel() {
+      const panel = document.getElementById("map-panel");
+      isMapVisible = !isMapVisible;
+      
+      if (isMapVisible) {
+        panel.style.display = "block";
+        document.getElementById("btn-toggle-map").classList.add("btn-accent");
+        
+        if (!mapInstance) {
+          mapInstance = L.map("map").setView([39.92077, 32.85411], 6);
+          const layerSelect = document.getElementById("map-layer-select");
+          layerSelect.value = DEFAULT_MAP_LAYER;
+          activeTileLayer = buildTileLayer(DEFAULT_MAP_LAYER).addTo(mapInstance);
+          markersGroup = L.featureGroup().addTo(mapInstance);
+          
+          document.getElementById("map-layer-select").addEventListener("change", (e) => {
+            changeMapLayer(e.target.value);
+          });
+        }
+        
+        setTimeout(() => mapInstance.invalidateSize(), 50);
+        
+        renderMap();
+      } else {
+        panel.style.display = "none";
+        document.getElementById("btn-toggle-map").classList.remove("btn-accent");
+      }
+    }
+
+    function renderMap({ fitBounds = true } = {}) {
+      if (!mapInstance || !markersGroup) return;
+      
+      markersGroup.clearLayers();
+      
+      const filterId = foldText(document.getElementById("filter-id").value);
+      const filterName = foldText(document.getElementById("filter-name").value);
+      const filterIl = document.getElementById("filter-il").value;
+      const filterIlce = document.getElementById("filter-ilce").value;
+      const query = foldText(document.getElementById("search-input").value);
+      
+      let plotted = 0;
+      
+      dataset.rows.forEach(r => {
+        if (filterId && !foldText(r.id).includes(filterId)) return;
+        if (filterName && !foldText(r.name).includes(filterName)) return;
+        if (filterIl && foldText(r.il) !== filterIl) return;
+        if (filterIlce && foldText(r.ilce) !== filterIlce) return;
+        
+        if (query) {
+          const matchId = foldText(r.id).includes(query);
+          const matchName = foldText(r.name).includes(query);
+          const matchAddr = foldText(r.address).includes(query);
+          const matchNote = foldText(r.note).includes(query);
+          const matchStatus = foldText(statusLabel(r.status)).includes(query);
+          if (!matchId && !matchName && !matchAddr && !matchNote && !matchStatus) {
+            return;
+          }
+        }
+
+        const lat = parseFloat(r.latitude);
+        const lng = parseFloat(r.longitude);
+        if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+          return;
+        }
+        
+        plotted++;
+        
+        let color = "#d11f52";
+        const statusClass = STATUS_CLASS_MAP[r.status];
+
+        if (isUnverifiedNote(r.note)) {
+          color = "#ef4444";
+        } else if (statusClass === "ok") {
+          color = "#10b981";
+        } else if (statusClass === "bad") {
+          color = "#ef4444";
+        } else if (r.status.trim() !== "") {
+          color = "#f59e0b";
+        }
+        
+        const pinHtml = `
+          <div style="width: 32px; height: 40px; display: block;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 40" width="32" height="40" style="display: block;">
+              <ellipse cx="16" cy="36" rx="7" ry="2.5" fill="rgba(0,0,0,0.2)" />
+              <path fill="${color}" stroke="#ffffff" stroke-width="1.5" d="M16 2C10.5 2 6 6.5 6 12C6 19.5 16 34 16 34S26 19.5 26 12C26 6.5 21.5 2 16 2Z" />
+              <circle cx="16" cy="12" r="4" fill="#ffffff" />
+            </svg>
+          </div>
+        `;
+        
+        const customIcon = L.divIcon({
+          html: pinHtml,
+          className: "custom-pin-marker",
+          iconSize: [32, 40],
+          iconAnchor: [16, 34],
+          popupAnchor: [0, -34]
+        });
+
+        const marker = L.marker([lat, lng], {
+          icon: customIcon
+        });
+        
+        marker.bindPopup(`
+          <strong>${escapeHtml(r.name || r.id)}</strong><br/>
+          <span style="font-size:11px; color:#94a3b8;">${escapeHtml(r.address)}</span><br/>
+          <span style="display:inline-block; margin-top:4px; font-weight:600; color:${color}">${escapeHtml(statusLabel(r.status) || t("map.pending"))}</span><br/>
+          <small style="display:block; max-width:200px; font-size:10px; color:#cbd5e1; margin-top:3px;">${escapeHtml(r.note)}</small>
+        `);
+
+        markersGroup.addLayer(marker);
+      });
+
+      document.getElementById("plotted-dots-label").innerText = t("map.plotted", { p: plotted, t: dataset.rows.length });
+
+      if (plotted > 0 && fitBounds) {
+        mapInstance.fitBounds(markersGroup.getBounds(), { padding: [30, 30] });
+      }
+    }
+
+    // =====================================================================
+    // Theme, reset and toast notifications
+    // =====================================================================
+
+    function initTheme() {
+      const savedTheme = localStorage.getItem("poi_theme");
+      const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const isDark = savedTheme === "dark" || (!savedTheme && systemPrefersDark);
+      
+      const themeBtn = document.getElementById("btn-toggle-theme");
+      if (isDark) {
+        document.documentElement.classList.add("dark");
+        if (themeBtn) themeBtn.innerHTML = `<i data-lucide="sun" size="16"></i>`;
+      } else {
+        document.documentElement.classList.remove("dark");
+        if (themeBtn) themeBtn.innerHTML = `<i data-lucide="moon" size="16"></i>`;
+      }
+    }
+
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.toggle("dark");
+      localStorage.setItem("poi_theme", isDark ? "dark" : "light");
+      
+      const themeBtn = document.getElementById("btn-toggle-theme");
+      if (isDark) {
+        themeBtn.innerHTML = `<i data-lucide="sun" size="16"></i>`;
+      } else {
+        themeBtn.innerHTML = `<i data-lucide="moon" size="16"></i>`;
+      }
+      lucide.createIcons();
+    }
+
+    function clearDataset() {
+      dataset = {
+        name: "",
+        rows: [],
+        columns: []
+      };
+      selectedRows.clear();
+
+      document.getElementById("loaded-file-name").innerText = t("file.none");
+      
+      document.getElementById("search-input").value = "";
+      document.getElementById("search-input").disabled = true;
+      document.getElementById("th-select-all").checked = false;
+      document.getElementById("th-select-all").disabled = true;
+      
+      document.getElementById("filter-id").value = "";
+      document.getElementById("filter-name").value = "";
+      document.getElementById("filter-il").innerHTML = `<option value="">${t("filter.all")}</option>`;
+      document.getElementById("filter-ilce").innerHTML = `<option value="">${t("filter.all")}</option>`;
+      
+      document.getElementById("excel-file-input").value = "";
+
+      switchTab("geocode");
+
+      if (isMapVisible) {
+        toggleMapPanel();
+      }
+
+      renderTable();
+
+      updateButtonStates();
+
+      showToast(t("toast.success"), t("msg.cleared"), "success");
+    }
+
+    function showToast(title, desc, type = "info") {
+      const toast = document.getElementById("toast");
+      const tTitle = document.getElementById("toast-title");
+      const tDesc = document.getElementById("toast-desc");
+      const iconContainer = document.getElementById("toast-icon-container");
+      
+      tTitle.innerText = title;
+      tDesc.innerText = desc;
+      
+      toast.style.borderLeftColor = `var(--${type})`;
+      
+      let iconName = "info";
+      if (type === "success") iconName = "check-circle";
+      else if (type === "error") iconName = "x-circle";
+      else if (type === "warn") iconName = "alert-triangle";
+      
+      iconContainer.innerHTML = `<i data-lucide="${iconName}" class="toast-icon ${type}" size="18" style="color:var(--${type})"></i>`;
+      lucide.createIcons();
+      
+      toast.classList.add("show");
+      
+      if (window.toastTimeout) clearTimeout(window.toastTimeout);
+      
+      window.toastTimeout = setTimeout(() => {
+        toast.classList.remove("show");
+      }, 3500);
+    }
+  </script>
+</body>
+</html>
